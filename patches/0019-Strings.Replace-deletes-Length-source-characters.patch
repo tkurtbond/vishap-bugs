@@ -1,4 +1,4 @@
-From da35b811e87b73c09ade3fd13dbd812f633fc158 Mon Sep 17 00:00:00 2001
+From 421f9b7c42a1c7de9323a88e0904dcdba3cd4059 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:29:30 -0400
 Subject: [PATCH 19/48] Strings.Replace deletes Length(source) characters

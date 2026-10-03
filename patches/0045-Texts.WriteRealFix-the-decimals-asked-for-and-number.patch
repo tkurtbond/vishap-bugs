@@ -1,4 +1,4 @@
-From 9f2d14e8173bf4e94045df4edde10bc382fa7609 Mon Sep 17 00:00:00 2001
+From c6e38cea4e57f0b137c688c28a212bdae16bcc8b Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:36:40 -0400
 Subject: [PATCH 45/48] Texts.WriteRealFix: the decimals asked for, and numbers

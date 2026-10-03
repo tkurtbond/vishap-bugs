@@ -124,6 +124,8 @@ $ ./WithCast
 (exit status 0)
 ```
 
+A longer account, with more reproducers, is in `notes/13-with-self-recursion/README.md`.
+
 The fix is `patches/0013-Check-and-pass-a-recursive-call-s-arguments-against-.patch`, a `git format-patch` of one commit.
 
 ## Environment

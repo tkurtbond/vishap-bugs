@@ -1,11 +1,13 @@
-# DIV and MOD give wrong results for a 64-bit dividend near MIN or MAX
+# DIV and MOD give wrong results for a 64-bit dividend near MIN or MAX, and a constant product of -2^63 is rejected
 
 *This report was prepared with the help of AI (Claude, by Anthropic). The reproducers were run and the output shown is copied from those runs.*
 
 Under `-OC`, `MIN(LONGINT) DIV 2` is 4611686018427387903 (positive),
 `(MIN(LONGINT) + 1) DIV 2` and `MAX(LONGINT) DIV (-2)` are positive, and
 `MIN(LONGINT) MOD (-3)` is 2: the run-time `SYSTEM_DIV`/`SYSTEM_MOD`
-overflow.
+overflow. The compiler's constant folder uses them to check a product for
+overflow, so it also rejects the constant `(-4611686018427387904) * 2`,
+which is exactly -2^63 and fits, with err 204, "product too large".
 
 ## Reproducer
 
@@ -31,6 +33,17 @@ BEGIN (* compile with -OC: LONGINT is 64 bits *)
 END DivModMin.
 ```
 
+`ConstProduct.Mod`:
+
+```oberon
+MODULE ConstProduct; (* a constant product equal to MIN(HUGEINT) is rejected as an overflow *)
+IMPORT Out;
+CONST p = (-4611686018427387904) * 2;      (* -2^63 = MIN(HUGEINT), fits *)
+BEGIN
+  Out.Int(p, 0); Out.Ln
+END ConstProduct.
+```
+
 With voc at `master`:
 
 ```
@@ -48,6 +61,16 @@ $ ./DivModMin
 (exit status 0)
 ```
 
+```
+$ voc -OC ConstProduct.Mod -m
+ConstProduct.Mod  Compiling ConstProduct.
+   3: CONST p = (-4611686018427387904) * 2;      (* -2^63 = MIN(HUGEINT), fits *)
+                                         ^
+    pos   142  err 204  product too large
+Module compilation failed.
+(voc's exit status 1)
+```
+
 ## Cause and fix
 
 With a 64 bit LONGINT, MIN(LONGINT) DIV 2 was 4611686018427387903,
@@ -57,6 +80,12 @@ before dividing, which overflowed. They now take C's truncating quotient
 and remainder and adjust them by one divisor when the signs differ. A
 divisor of -1, the one case where C's division overflows, is handled
 first; 0 DIV y and 0 MOD y stay 0 as before.
+
+The compiler's constant folder divides the same way: OPB.ConstOp checks
+a constant product for overflow with MIN(SYSTEM.INT64) DIV y, so it
+rejected (-4611686018427387904) * 2, which is MIN(SYSTEM.INT64) and
+fits, with err 204, "product too large". Once the compiler is built
+with these functions it folds that product.
 
 With the fix:
 
@@ -70,6 +99,12 @@ $ ./DivModMin
 -1 (expected -1)
 3074457345618258602 (expected 3074457345618258602)
 -2 (expected -2)
+(exit status 0)
+```
+
+```
+$ ./ConstProduct
+-9223372036854775808
 (exit status 0)
 ```
 

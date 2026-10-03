@@ -19,6 +19,9 @@ Nothing here has been submitted to voc's repository.
   issue text. Compile one with `voc -O2 File.Mod -m` (or `-OC`, where the
   issue says so) and run `./File`.
 - `patches/00NN-*.patch`: the fix, `git format-patch` of one commit.
+- `notes/NN-name/`: longer accounts of two of the bugs, 13 and 14.
+- `tools/`: what produced and checked all of the above, described in
+  "Reproducing the results" below.
 
 ## Applying the patches
 
@@ -59,6 +62,30 @@ The chains are:
 - 15 ← 17 (Files).
 - 28 ← 29 (Strings.StrToReal).
 
+## Reproducing the results
+
+Build voc twice with `make all`, at `master` and with the series applied
+(`git am`), and use each one's `install` directory (`bin/`, `lib/`, ...):
+
+- `tools/runall.sh LABEL VOCDIR OUTDIR` compiles and runs every reproducer
+  listed in `tools/manifest` (issue, size model, modules, standard input,
+  setup) and writes the transcripts. The issue texts use those labelled
+  `master` and `new`.
+- `tools/gen.py VOCCLONE OUTDIR` writes `issues/*.md` and this README from
+  `tools/issues.py` (each issue's title and summary, and the table of
+  dependencies), `tools/README.head.md`, the reproducers, the transcripts,
+  and the commit messages of the branch `series` in VOCCLONE. Write
+  `patches/` with `git -C VOCCLONE format-patch -o patches master..series`
+  first.
+- `tools/each-commit.sh VOCCLONE` builds every commit of the series with
+  `make all` and reports whether its confidence tests pass.
+- `tools/checks/run.sh VOCDIR` makes the counts quoted in patches 0032,
+  0047 and 0048: Out.LongReal's digits for 2000 random doubles, Math.sqrt
+  and MathL.sqrt for 3003 REALs and 3007 doubles, and sin, cos and tan for
+  407 arguments from 9100 to 4.2E307, compared with the C library's.
+  `tools/checks/literals.sh VOCDIR SRCDIR` makes those in patch 0002, for
+  the real literals in voc's `src/`.
+
 ## The issues
 
 | # | Issue | Patch | Needs |
@@ -69,7 +96,7 @@ The chains are:
 | 04 | [REAL literals of 1.0E38 or more and LONGREAL literals of 1.0D308 or more are "number too large"](issues/04-real-literal-largest-exponent.md) | [0004](patches/0004-Accept-real-literals-from-1.0E38-to-MAX-REAL-1.0D308.patch) | 02 |
 | 05 | [MAX(LONGREAL) is not the largest LONGREAL, and a folded MAX(REAL) is not the stored one](issues/05-max-real-exact.md) | [0005](patches/0005-Make-MAX-REAL-and-MAX-LONGREAL-the-largest-REAL-and-.patch) | 03 |
 | 06 | [SHORT of a LONGREAL is not rounded to REAL inside an expression](issues/06-short-longreal-cast.md) | [0006](patches/0006-Round-SHORT-of-a-LONGREAL-to-REAL-where-it-is-used-n.patch) |  |
-| 07 | [DIV and MOD give wrong results for a 64-bit dividend near MIN or MAX](issues/07-div-mod-overflow.md) | [0007](patches/0007-SYSTEM_DIV-SYSTEM_MOD-no-overflow-for-a-dividend-nea.patch) |  |
+| 07 | [DIV and MOD give wrong results for a 64-bit dividend near MIN or MAX, and a constant product of -2^63 is rejected](issues/07-div-mod-overflow.md) | [0007](patches/0007-SYSTEM_DIV-SYSTEM_MOD-no-overflow-for-a-dividend-nea.patch) |  |
 | 08 | [Constant MIN(HUGEINT) DIV (-1) crashes the compiler with SIGFPE](issues/08-const-div-minus-one.md) | [0008](patches/0008-Constant-MIN-SYSTEM.INT64-DIV-1-is-an-error-not-a-co.patch) |  |
 | 09 | [CAP changes characters that are not lower-case letters](issues/09-cap-letters-only.md) | [0009](patches/0009-CAP-changes-only-lower-case-letters.patch) |  |
 | 10 | [ABS of a 64-bit argument with side effects is cut to 32 bits](issues/10-abs-side-effects-64.md) | [0010](patches/0010-ABS-of-a-64-bit-argument-with-side-effects-is-not-cu.patch) |  |

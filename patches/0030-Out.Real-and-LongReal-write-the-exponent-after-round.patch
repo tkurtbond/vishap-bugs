@@ -1,4 +1,4 @@
-From 68f1e5b84119663e45b13278c3c9d36b4cc65cb7 Mon Sep 17 00:00:00 2001
+From a1176d0694c771983134f4f11e525cd0d2ba60e1 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:40:29 -0400
 Subject: [PATCH 30/48] Out.Real and LongReal: write the exponent after

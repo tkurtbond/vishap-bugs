@@ -1,4 +1,4 @@
-From 1f87ad2c6f78bfd5a70de1f3c43f619902fcedda Mon Sep 17 00:00:00 2001
+From 9801b595a58f4ef30cc0a5b2200f662fceef1de1 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:26:29 -0400
 Subject: [PATCH 16/48] Files.Delete of an open file reports success

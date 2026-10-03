@@ -1,4 +1,4 @@
-From cda7c8e51440428d0e5e4def4af315b11a4eb8f5 Mon Sep 17 00:00:00 2001
+From 7a5fb75f77c1edf6ecfa6c057672e047756e188b Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:36:38 -0400
 Subject: [PATCH 25/48] In.Int, LongInt and HugeInt: hexadecimal digits need

@@ -1,4 +1,4 @@
-From 7162acb7dc9dde6c2497893808f2a347d1ce7c0d Mon Sep 17 00:00:00 2001
+From b114099065c9e240e9a4201f1ca220ea8eae3092 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:34:47 -0400
 Subject: [PATCH 44/48] Texts: a subnormal number is written with its digits,

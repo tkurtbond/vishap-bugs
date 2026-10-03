@@ -1,4 +1,4 @@
-From 1d17744128925215c0e5a833918b26cda4aba72c Mon Sep 17 00:00:00 2001
+From 458d6247905cd638997c009a1cef4de57487a52c Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:21:39 -0400
 Subject: [PATCH 42/48] Math.exponent and MathL.exponent of a denormal number

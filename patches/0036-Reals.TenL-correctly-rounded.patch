@@ -1,4 +1,4 @@
-From 76acc70a912820fc7a93ba614b3413ce8ed5379f Mon Sep 17 00:00:00 2001
+From ec82162b93560852b94966ca0da8bbacbc68996f Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:13:10 -0400
 Subject: [PATCH 36/48] Reals.TenL: correctly rounded

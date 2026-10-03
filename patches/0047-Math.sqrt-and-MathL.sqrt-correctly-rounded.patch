@@ -1,4 +1,4 @@
-From aca1a2b9dde694cf52fb819378e1513ba98a8302 Mon Sep 17 00:00:00 2001
+From 5e0d046b5054d518fbba9243441bfbaead0b1a7a Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:40:02 -0400
 Subject: [PATCH 47/48] Math.sqrt and MathL.sqrt: correctly rounded

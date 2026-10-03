@@ -1,0 +1,47 @@
+01-entier-64|OC|LongRealLiteral ConstEntier||
+02-real-literal-rounding|2|LiteralRounding||
+03-real-constants-exact|2|RealConstants||
+04-real-literal-largest-exponent|2|RealExponent||
+05-max-real-exact|2|MaxReal||
+06-short-longreal-cast|2|LongShort||
+07-div-mod-overflow|OC|DivModMin ConstProduct||
+08-const-div-minus-one|2|ConstDivMinusOne||
+09-cap-letters-only|2|Cap||
+10-abs-side-effects-64|OC|Abs64||
+11-open-array-row-stride|2|RowStride||
+12-nested-open-array-lengths|2|NestedLengths||
+13-with-self-recursion|2|WithRecursion WithCast||
+14-gc-callee-saved-registers|OC|GcRepro||
+15-files-absolute-names|2|FilesRelative||mkdir -p sub
+16-files-delete-open|2|FilesDeleteOpen||
+17-files-rename-open|2|FilesRenameOpen||
+18-strings-insert-past-end|2|StringsInsertEnd||
+19-strings-replace-count|2|StringsReplace||
+20-strings-append-insert-0x|2|StringsOverflow||
+21-strings-extract-small-dest|2|StringsExtract||
+22-strings-pos-negative|2|StringsPos||
+23-files-readstring-bounds|2|FilesReadString FilesReadLine||
+24-hugeint-is-int64|2|InHugeInt|123|
+25-in-hex-needs-h|2|InHex|12AB 0FFH|
+26-in-real-one-number|2|InReal|3.14159265358979323846\n1.5 2.5\nabc|
+27-in-name|2|InName|dir/file.txt|
+28-strtoreal-exponent-plus|2|StrToRealPlus||
+29-strtoreal-rounding|2|StrToReal||
+30-out-real-exponent-carry|2|OutExponent||
+31-out-subnormal|2|OutSubnormal||
+32-out-real-correct-rounding|2|OutRound||
+33-vt100-counts|2|VT100Count||
+34-vt100-dsr|2|VT100Dsr||
+35-vt100-setattr|2|VT100SetAttr||
+36-reals-tenl-exact|2|TenL||
+38-math-sincos-cos|2|SinCos||
+39-math-succ-pred|2|SuccPred||
+40-real-literal-smallest|2|SmallLiteral Denormal TinyLiteral||
+41-mathl-small|2|MathLSmall||
+42-math-exponent-denormal|2|ExponentDenormal||
+43-texts-infinity|2|TextsInf||
+44-texts-subnormal|2|TextsSubnormal||
+45-texts-writerealfix|2|TextsFix||
+46-texts-scan-range|2|TextsScan||
+47-mathl-sqrt-rounding|2|SqrtRound||
+48-math-sin-cos-large|2|LargeTrig||

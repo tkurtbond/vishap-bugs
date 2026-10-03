@@ -82,6 +82,8 @@ calls with a corrupted argument: 0 of 1000000
 (exit status 0)
 ```
 
+A longer account, with more reproducers, is in `notes/14-gc-callee-saved-registers/README.md`.
+
 The fix is `patches/0014-Heap.GC-store-the-callee-saved-registers-before-scan.patch`, a `git format-patch` of one commit.
 
 It changes lines that patch 0009 (CAP changes characters that are not lower-case letters) also changes, and is made to apply after it.

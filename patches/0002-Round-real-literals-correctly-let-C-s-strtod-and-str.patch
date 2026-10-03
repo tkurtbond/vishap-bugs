@@ -1,4 +1,4 @@
-From d63c694f9a27b5f1c448acf6fda2498f24a254d2 Mon Sep 17 00:00:00 2001
+From e8092ed0ab06b994b4750abafca3175ec204bcab Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:10:30 -0400
 Subject: [PATCH 02/48] Round real literals correctly: let C's strtod and
@@ -8,11 +8,18 @@ OPS.Number built 0.ddd by successive divisions by 10 and scaled it by a
 power of ten made by repeated squaring, each step rounding, so many
 literals were a few units in the last place off: 1.1D3 became
 1100.0000000000002, 123.456D0 123.45600000000002, 1.0D23
-1.0000000000000001D23 (232 of the 325 real literals in voc's own source
-came out right). Constant folding and comparison see these values. The
-scanner now hands the literal's digits and exponent to strtod (LONGREAL)
-or strtof (REAL), which round correctly. The digit buffer grows from 24
-to 64 digits, so a long constant such as MathL.pi is not cut short.
+1.0000000000000001D23. Constant folding and comparison see these values.
+The scanner now hands the literal's digits and exponent to strtod
+(LONGREAL) or strtof (REAL), which round correctly. The digit buffer
+grows from 24 to 64 digits, so a long constant such as MathL.pi is not
+cut short.
+
+Of the 236 distinct real literals in voc's own source, a program
+compiled by voc at master gets 68 as a value other than the nearest REAL
+or LONGREAL (some through this, some through the C written for them,
+"Write real constants to C exactly"), and 3 do not compile under -OC
+(1.0D10, 1.0D16 and 1.0E10: "Take ENTIER of constants >= 2^31 in 64
+bits"). With those two and this one applied, all 236 are right.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---

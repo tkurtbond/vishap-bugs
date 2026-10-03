@@ -1,4 +1,4 @@
-From 478cac31440b2e0ab1b84429fc1fa6936d75494f Mon Sep 17 00:00:00 2001
+From e78c9f4991dd239ae87b14129d9f3cd1de86eab1 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:13:37 -0400
 Subject: [PATCH 37/48] Features.md: SET has 32 bits under -OC too

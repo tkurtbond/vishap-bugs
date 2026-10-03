@@ -1,4 +1,4 @@
-From 2a32a96f82d4513e17fccb89b4ae44374b3d83e1 Mon Sep 17 00:00:00 2001
+From 8863cfd2804e387ff253f0535233255defd4d640 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:16:57 -0400
 Subject: [PATCH 38/48] Math.sincos and MathL.sincos: the cosine's sign

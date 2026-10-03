@@ -1,4 +1,4 @@
-From 30bba14b31cb6f52e632128e7e04fc7bac400f06 Mon Sep 17 00:00:00 2001
+From d9c6c45b10b86eb78255b0e1ae8599bfdd6bc158 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:18:51 -0400
 Subject: [PATCH 41/48] MathL.small: the smallest normal LONGREAL

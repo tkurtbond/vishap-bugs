@@ -1,4 +1,4 @@
-From 223d4fd844d5c33660d56cf11b70488bb3a89a69 Mon Sep 17 00:00:00 2001
+From 440485548d3cf96dad122666826d34ec4bd09153 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:41:37 -0400
 Subject: [PATCH 31/48] Out.LongReal writes a subnormal number, not 0

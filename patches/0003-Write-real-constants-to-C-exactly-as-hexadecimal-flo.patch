@@ -1,4 +1,4 @@
-From d71458b9e50ecd444024d1cc2bd5f052818c911d Mon Sep 17 00:00:00 2001
+From ea0854325a152ddc0023f202613de48ccce55504 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:11:53 -0400
 Subject: [PATCH 03/48] Write real constants to C exactly, as hexadecimal

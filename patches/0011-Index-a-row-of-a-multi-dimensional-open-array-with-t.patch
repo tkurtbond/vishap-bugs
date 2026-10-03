@@ -1,4 +1,4 @@
-From 67e559ff510c779e36ff617280a08c27db2de120 Mon Sep 17 00:00:00 2001
+From ffba8bef50f6ee5538a0caefff16017a6aabdf10 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:19:27 -0400
 Subject: [PATCH 11/48] Index a row of a multi-dimensional open array with the

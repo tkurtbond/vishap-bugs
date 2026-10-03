@@ -1,4 +1,4 @@
-From 149434954cf5fb2d886ad4e28161fa9195c0697f Mon Sep 17 00:00:00 2001
+From 73183ddb02bc2a9d703cf1448d1b8ed26fbff9ac Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:31:30 -0400
 Subject: [PATCH 23/48] Files.ReadString and ReadLine stop at the end of the

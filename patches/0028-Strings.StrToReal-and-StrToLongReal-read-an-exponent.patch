@@ -1,4 +1,4 @@
-From a0a6aaf37f6517041bf51aed7e666f442390dff1 Mon Sep 17 00:00:00 2001
+From e11eec1e48187e67fd355d16e2c94b4e8386e0a5 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:38:29 -0400
 Subject: [PATCH 28/48] Strings.StrToReal and StrToLongReal read an exponent

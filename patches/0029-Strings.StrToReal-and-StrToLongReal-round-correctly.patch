@@ -1,4 +1,4 @@
-From eeddff55e57914f697b0491f59b9cb0ef137ab0c Mon Sep 17 00:00:00 2001
+From 129e5f00087f12638573ecc021bcf33859bf3285 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:39:09 -0400
 Subject: [PATCH 29/48] Strings.StrToReal and StrToLongReal round correctly

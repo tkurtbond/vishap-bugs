@@ -60,12 +60,13 @@ of 2/pi's bits, 24 to an element), gives the quadrant and the remainder
 r, |r| <= pi/4, whose sine or cosine the existing code computes. An
 infinity or a NaN still gives LossOfAccuracy and 0.
 
-Checked against the C library on 407 arguments from 1E4 to 1E308: Math's
-results are within 3 units in the last place of sinf, cosf and tanf;
-MathL's within 13 of sin and cos, which is the error of MathL's own
-sin and cos on |r| <= pi/4. (Below the limits nothing changes; there the
-existing reduction's error grows with x, to thousands of units in the
-last place near the limit.)
+Checked against the C library on 407 arguments from 9100 to 4.2E307:
+Math's sin, cos and tan are within 3 units in the last place of sinf,
+cosf and tanf on the 226 that are REALs, and MathL's within 2 of sin,
+cos and tan on the 385 at or above MathL's limit. Below the limits
+nothing changes: there the existing reduction's error grows with x, and
+on the other 22 arguments MathL is up to 5876 units in the last place
+off.
 
 With the fix:
 
