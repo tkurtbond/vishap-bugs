@@ -1,7 +1,7 @@
 From b36f1395098e21e6f9e7ca36538073f58364dfa7 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:57:28 -0400
-Subject: [PATCH 33/48] VT100: counts of any size
+Subject: [PATCH 33/67] VT100: counts of any size
 
 EscSeq and EscSeqSwapped converted their count into an ARRAY 2 OF CHAR,
 which holds one digit, so a count of 10 or more was cut to its first

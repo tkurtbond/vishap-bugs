@@ -1,7 +1,7 @@
 From c449ff8bb891da872248e465e25486e33316b49f Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:44:06 -0400
-Subject: [PATCH 48/48] Math and MathL: sin, cos and tan of a large argument
+Subject: [PATCH 48/67] Math and MathL: sin, cos and tan of a large argument
 
 Math.sin and Math.cos gave 0 and reported LossOfAccuracy for an argument
 of 9099 or more, Math.tan for one above 6434, and MathL.sin and MathL.cos

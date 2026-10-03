@@ -1,0 +1,70 @@
+From c4494ba0c8a5a26d0fc66294681cd00ba26688dd Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:50:59 -0400
+Subject: [PATCH 55/67] Math.exp and MathL.exp: results in the denormal range
+
+exp returned 0 for every x below ln(1/MAX), about -88.7 for REAL and
+-709.8 for LONGREAL, though exp(x) is a denormal number down to about
+-103.3 and -744.4: Math.exp(-90.0) was 0, with Math.err set to
+Underflow, not 8.2E-40, and MathL.exp(-720.0D0) was 0, not 2.0E-313.
+
+The limit is now the logarithm of half the smallest denormal number,
+below which exp(x) rounds to 0, and exp's result is scaled into the
+denormal range by scale.
+
+Needs "Math and MathL: fraction, ulp and scale of denormal numbers",
+which makes scale give a denormal result.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Math.Mod  | 4 ++--
+ src/runtime/MathL.Mod | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/runtime/Math.Mod b/src/runtime/Math.Mod
+index c3a254f5..84381535 100644
+--- a/src/runtime/Math.Mod
++++ b/src/runtime/Math.Mod
+@@ -128,7 +128,7 @@
+   a2: ARRAY 9 OF REAL;  (* lookup table for power function *)
+   em: REAL;             (* largest number such that 1 + epsilon > 1.0 *)
+   LnInfinity: REAL;     (* natural log of infinity *)
+-  LnSmall: REAL;        (* natural log of very small number *)
++  LnSmall: REAL;        (* natural log of half the smallest denormal number *)
+   SqrtInfinity: REAL;   (* square root of infinity *)
+   tiny: REAL;           (* 2^-places, for scaling to a denormal *)
+   TanhMax: REAL;        (* maximum Tanh value *)
+@@ -927,7 +927,7 @@
+   (* determine fundamental constants used by hyperbolic trig functions *)
+   em           := ulp(ONE);
+   LnInfinity   := ln(large);
+-  LnSmall      := ln(miny);
++  LnSmall      := (expoMin - places) * ln(TWO);  (* below it, exp rounds to 0 *)
+   SqrtInfinity := sqrt(large);
+   t            := pred(ONE)/sqrt(em);
+   TanhMax      := ln(t + sqrt(t * t + ONE));
+diff --git a/src/runtime/MathL.Mod b/src/runtime/MathL.Mod
+index eab4af97..5735d39e 100644
+--- a/src/runtime/MathL.Mod
++++ b/src/runtime/MathL.Mod
+@@ -111,7 +111,7 @@
+   a2:           ARRAY 9 OF LONGREAL;  (* lookup table for power function *)
+   em:           LONGREAL;             (* largest number such that 1 + epsilon > 1.0 *)
+   LnInfinity:   LONGREAL;             (* natural log of infinity *)
+-  LnSmall:      LONGREAL;             (* natural log of very small number *)
++  LnSmall:      LONGREAL;             (* natural log of half the smallest denormal number *)
+   SqrtInfinity: LONGREAL;             (* square root of infinity *)
+   tiny:         LONGREAL;             (* 2^-places, for scaling to a denormal *)
+   TanhMax:      LONGREAL;             (* maximum Tanh value *)
+@@ -851,7 +851,7 @@
+   (* determine some fundamental constants used by hyperbolic trig functions *)
+   em           := ulp(ONE);
+   LnInfinity   := ln(large);
+-  LnSmall      := ln(miny);
++  LnSmall      := (expoMin - places) * ln(TWO);  (* below it, exp rounds to 0 *)
+   SqrtInfinity := sqrt(large);
+   t            := pred(ONE)/sqrt(em);
+   TanhMax      := ln(t + sqrt(t*t + ONE));
+-- 
+2.55.0
+

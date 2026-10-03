@@ -1,7 +1,7 @@
 From d3f22c697620386ce896efb97f7b75ec1ba5aec5 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:30:06 -0400
-Subject: [PATCH 21/48] Strings.Extract cuts a part too long for dest to end it
+Subject: [PATCH 21/67] Strings.Extract cuts a part too long for dest to end it
  with 0X
 
 Extract counted on to the length of the part and wrote its 0X there, past

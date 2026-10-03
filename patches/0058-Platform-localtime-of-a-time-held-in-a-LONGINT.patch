@@ -1,0 +1,37 @@
+From eb133b2438b62ec9f3e6b5471bce1a9092fc3a52 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:52:09 -0400
+Subject: [PATCH 58/67] Platform: localtime of a time held in a LONGINT
+
+sectotm passed localtime the address of its LONGINT argument, cast to
+time_t *. Under -O2 a LONGINT has 4 bytes and time_t 8, so localtime read
+4 bytes beyond the value. MTimeAsClock passes the mtime field of a
+FileIdentity, the last field of the record, so Files.GetDate read
+whatever followed the record: on FreeBSD amd64 and OpenBSD i386 that
+gave a time so far off that localtime returned NULL, and Files.GetDate
+stopped the program with a NIL access. (GetClock passes tv.tv_sec, a
+time_t, so it was not affected.)
+
+sectotm now copies its argument into a time_t and passes that.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Platformunix.Mod | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/runtime/Platformunix.Mod b/src/runtime/Platformunix.Mod
+index 4a88fe5d..e532f976 100644
+--- a/src/runtime/Platformunix.Mod
++++ b/src/runtime/Platformunix.Mod
+@@ -172,7 +172,7 @@
+ PROCEDURE -gettimeval          "struct timeval tv; gettimeofday(&tv,0)";
+ PROCEDURE -tvsec():  LONGINT   "tv.tv_sec";
+ PROCEDURE -tvusec(): LONGINT   "tv.tv_usec";
+-PROCEDURE -sectotm(s: LONGINT) "struct tm *time = localtime((time_t*)&s)";
++PROCEDURE -sectotm(s: LONGINT) "time_t secs = s; struct tm *time = localtime(&secs)";
+ PROCEDURE -tmsec():  LONGINT   "(LONGINT)time->tm_sec";
+ PROCEDURE -tmmin():  LONGINT   "(LONGINT)time->tm_min";
+ PROCEDURE -tmhour(): LONGINT   "(LONGINT)time->tm_hour";
+-- 
+2.55.0
+

@@ -1,7 +1,7 @@
 From 458d6247905cd638997c009a1cef4de57487a52c Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:21:39 -0400
-Subject: [PATCH 42/48] Math.exponent and MathL.exponent of a denormal number
+Subject: [PATCH 42/67] Math.exponent and MathL.exponent of a denormal number
 
 exponent read the biased exponent field and subtracted the bias, but a
 denormal's field is 0 whatever its value, so every denormal had the

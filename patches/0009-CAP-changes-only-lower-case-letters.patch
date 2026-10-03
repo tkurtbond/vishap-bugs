@@ -1,7 +1,7 @@
 From 8953297c20d0bf7e36430cfbfbd414633621269c Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:17:04 -0400
-Subject: [PATCH 09/48] CAP changes only lower-case letters
+Subject: [PATCH 09/67] CAP changes only lower-case letters
 
 __CAP cleared bit 5 (ch & 0x5F), so CAP("7") was 17X, CAP("{") "[",
 CAP("`") "@", and CAP of 0E9X (Latin-1 e acute) "I". The compiler folds

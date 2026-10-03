@@ -1,7 +1,7 @@
 From 3ebe67ca4b3c94f4e658cf45850371316db5a21a Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:29:17 -0400
-Subject: [PATCH 18/48] Strings.Insert at a position past the end appends
+Subject: [PATCH 18/67] Strings.Insert at a position past the end appends
 
 Insert called Append(dest, source), its arguments the wrong way round:
 source is a value parameter, so dest was left as it was. Oakwood:

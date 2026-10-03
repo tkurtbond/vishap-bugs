@@ -1,0 +1,44 @@
+From 69df7d15aaf1b9281e8265630508dde6215d7fa7 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:47:22 -0400
+Subject: [PATCH 52/67] Texts.Close: file names of any length Files takes
+
+Close made the backup file's name, name + ".Bak", in an ARRAY 64 OF CHAR,
+so a name of 60 characters or more stopped the program with an index
+out of range, though Files takes names of up to 255 characters.
+
+The backup name now has room for any name Files takes, and the length of
+the name is found within its array.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index f68e3982..8cf5b8bf 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -931,12 +931,15 @@
+   END Store;
+ 
+   PROCEDURE Close* (T: Text; name: ARRAY OF CHAR);
+-    VAR f: Files.File; r: Files.Rider; i, res: INTEGER; bak: ARRAY 64 OF CHAR;
++    VAR f: Files.File; r: Files.Rider; i, res: INTEGER; bak: ARRAY 260 OF CHAR;  (* Files' names: 255 characters *)
+   BEGIN
+     f := Files.New(name); Files.Set(r, f, 0); Files.Write(r, textTag); Files.Write(r, version); Store(r, T);
+-    i := 0; WHILE name[i] # 0X DO INC(i) END;
+-    COPY(name, bak); bak[i] := "."; bak[i+1] := "B"; bak[i+2] := "a"; bak[i+3] := "k"; bak[i+4] := 0X;
+-    Files.Rename(name, bak, res); Files.Register(f)
++    i := 0; WHILE (i < LEN(name)) & (name[i] # 0X) DO INC(i) END;
++    IF i + 4 < LEN(bak) THEN
++      COPY(name, bak); bak[i] := "."; bak[i+1] := "B"; bak[i+2] := "a"; bak[i+3] := "k"; bak[i+4] := 0X;
++      Files.Rename(name, bak, res)
++    END;
++    Files.Register(f)
+   END Close;
+ 
+ BEGIN del := NIL; NEW(FontsDefault); FontsDefault.name := "Syntax10.Scn.Fnt"
+-- 
+2.55.0
+

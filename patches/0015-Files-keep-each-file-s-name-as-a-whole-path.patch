@@ -1,7 +1,7 @@
 From be581864394a2cdd9c26af81866d8e7de1d174cd Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:25:08 -0400
-Subject: [PATCH 15/48] Files: keep each file's name as a whole path
+Subject: [PATCH 15/67] Files: keep each file's name as a whole path
 
 New and Old stored the name as given, relative to the directory current
 then. When the same file was registered again later (Deregister finds

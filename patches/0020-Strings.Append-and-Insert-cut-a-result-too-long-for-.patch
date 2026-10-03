@@ -1,7 +1,7 @@
 From 8ea55b4b239875cd44eef2bd3c7f394f3c24f1f6 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:29:54 -0400
-Subject: [PATCH 20/48] Strings.Append and Insert cut a result too long for
+Subject: [PATCH 20/67] Strings.Append and Insert cut a result too long for
  dest to end it with 0X
 
 Oakwood: "If the size of dst is not large enough to hold the result of

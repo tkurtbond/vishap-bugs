@@ -1,0 +1,124 @@
+From 7d1231034f2b2c45b87399a85cd17a35f004dedd Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 16:06:02 -0400
+Subject: [PATCH 66/67] Texts.Scan: real numbers correctly rounded
+
+Scan computed a real number's value digit by digit in floating point,
+dividing by 10 for each decimal and scaling by a power of ten, each step
+rounding, so the result was often a unit or more in the last place off,
+where IEEE 754 and every C library read a decimal numeral correctly
+rounded. Of 2000 random REAL numerals Scan read 636 wrong, and of 1000
+LONGREAL ones 666 (869 at voc's master), up to 4 units in the last place
+off (8 at master): 1.06E7 was 10599999.0, not 10600000.0.
+
+Scan now gives the digits it read, and the exponent, to the C library's
+strtof (for a REAL) or strtod (for a LONGREAL), which round correctly;
+a number out of range is still 0 or an infinity.
+
+Needs "Texts.Scan: numbers of 32 digits or more", whose digit count it
+uses.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 72 +++++++++++++++++--------------------------
+ 1 file changed, 28 insertions(+), 44 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index 9194bb0a..5926880c 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -397,14 +397,19 @@
+     x = 2^(e-127) * 1.m    bit 0: sign, bits 1- 8: e, bits  9-31: m
+     x = 2^(e-1023) * 1.m   bit 0: sign, bits 1-11: e, bits 12-63: m *)
+ 
++  (* C's strtof and strtod read a decimal numeral correctly rounded *)
++  PROCEDURE -AAincludeStdlib '#include <stdlib.h>';
++  PROCEDURE -strtof(s: ARRAY OF CHAR): REAL 'strtof((const char*)s, 0)';
++  PROCEDURE -strtod(s: ARRAY OF CHAR): LONGREAL 'strtod((const char*)s, 0)';
++
+   PROCEDURE Scan* (VAR S: Scanner);
+     CONST maxD = 256;
+     VAR ch, term: CHAR;
+       neg, negE, hex: BOOLEAN;
+       i, j, h: INTEGER;
+-      e, extra: INTEGER; k: LONGINT;
+-      x, f: REAL; y, g: LONGREAL;
++      e, extra, n: INTEGER; k: LONGINT; c: CHAR;
+       d: ARRAY maxD OF CHAR;
++      num: ARRAY maxD + 16 OF CHAR;  (* a real number's numeral, for strtof and strtod *)
+ 
+     PROCEDURE ReadScaleFactor;
+     BEGIN Read(S, ch);
+@@ -466,48 +471,27 @@
+             IF i < maxD THEN d[i] := ch; INC(i) END;  (* decimals beyond maxD digits are dropped *)
+             Read(S, ch)
+           END ;
+-          IF ch = "D" THEN
+-            e := 0; y := 0; g := 1;
+-            REPEAT y := y*10 + (ORD(d[j]) - 30H); INC(j) UNTIL j = h;
+-            WHILE j < i DO g := g/10; y := (ORD(d[j]) - 30H)*g + y; INC(j) END ;
+-            ReadScaleFactor;
+-            IF negE THEN e := extra - e ELSE e := e + extra END;  (* integer digits not kept: scale by them *)
+-            negE := e < 0; e := ABS(e);
+-            (* beyond 10^308 in two steps: the number may still be in range;
+-               if it is not, it becomes 0 or an infinity *)
+-            IF negE THEN
+-              IF e <= 308 THEN y := y / Reals.TenL(e)
+-              ELSE y := y / Reals.TenL(308); y := y / Reals.TenL(e - 308)
+-              END
+-            ELSIF e > 0 THEN
+-              IF e <= 308 THEN y := Reals.TenL(e) * y
+-              ELSE y := Reals.TenL(308) * y;
+-                IF y # 0 THEN y := Reals.TenL(e - 308) * y END
+-              END
+-            END ;
+-            IF neg THEN y := -y END ;
+-            S.class := 5; S.y := y
+-          ELSE e := 0; x := 0; f := 1;
+-            REPEAT x := x*10 + (ORD(d[j]) - 30H); INC(j) UNTIL j = h;
+-            WHILE j < i DO f := f/10; x := (ORD(d[j])-30H)*f + x; INC(j) END;
+-            IF ch = "E" THEN ReadScaleFactor END ;
+-            IF negE THEN e := extra - e ELSE e := e + extra END;  (* integer digits not kept: scale by them *)
+-            negE := e < 0; e := ABS(e);
+-            (* beyond 10^38 in two steps, as for LONGREAL above *)
+-            IF negE THEN
+-              IF e <= 38 THEN x := x / Reals.Ten(e)
+-              ELSE x := x / Reals.Ten(38); x := x / Reals.Ten(e - 38)
+-              END
+-            ELSIF e > 0 THEN
+-              IF e <= 38 THEN x := Reals.Ten(e) * x
+-              ELSE x := Reals.Ten(38) * x;
+-                IF x # 0 THEN x := Reals.Ten(e - 38) * x END
+-              END
+-            END ;
+-            IF neg THEN x := -x END ;
+-            S.class := 4; S.x := x
+-          END ;
+-          IF hex THEN S.class := 0 END
++          e := 0;
++          IF ch = "D" THEN ReadScaleFactor; S.class := LongReal
++          ELSE
++            IF ch = "E" THEN ReadScaleFactor END;
++            S.class := Real
++          END;
++          IF negE THEN e := extra - e ELSE e := e + extra END;  (* integer digits not kept: scale by them *)
++          (* the numeral for the C library, which reads it correctly rounded,
++             and gives 0 or an infinity for one out of range *)
++          n := 0;
++          IF neg THEN num[n] := "-"; INC(n) END;
++          WHILE j < h DO num[n] := d[j]; INC(n); INC(j) END;
++          num[n] := "."; INC(n);
++          WHILE j < i DO num[n] := d[j]; INC(n); INC(j) END;
++          num[n] := "E"; INC(n);
++          IF e < 0 THEN num[n] := "-"; INC(n); e := -e END;
++          j := n; REPEAT num[n] := CHR(e MOD 10 + 30H); e := e DIV 10; INC(n) UNTIL e = 0;
++          num[n] := 0X; DEC(n);
++          WHILE j < n DO c := num[j]; num[j] := num[n]; num[n] := c; INC(j); DEC(n) END;  (* the exponent's digits, first first *)
++          IF S.class = LongReal THEN S.y := strtod(num) ELSE S.x := strtof(num) END;
++          IF hex THEN S.class := Inval END
+         ELSE (*decimal integer*)
+           S.class := 3; k := 0;
+           REPEAT k := k*10 + (ORD(d[j]) - 30H); INC(j) UNTIL j = i;
+-- 
+2.55.0
+

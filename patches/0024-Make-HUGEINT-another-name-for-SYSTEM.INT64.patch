@@ -1,7 +1,7 @@
 From ad09c3d95fefd7b97fc88d711d5634c237de2ea3 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:35:35 -0400
-Subject: [PATCH 24/48] Make HUGEINT another name for SYSTEM.INT64
+Subject: [PATCH 24/67] Make HUGEINT another name for SYSTEM.INT64
 
 HUGEINT was a type of its own, distinct from SYSTEM.INT64 though both
 are 8 byte integers. A symbol file records an integer type by its size

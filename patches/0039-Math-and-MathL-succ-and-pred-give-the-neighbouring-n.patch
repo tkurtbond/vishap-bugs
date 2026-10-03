@@ -1,7 +1,7 @@
 From e007475cfeab9bfdcc8c46bf9847893b7c22125b Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:18:11 -0400
-Subject: [PATCH 39/48] Math and MathL: succ and pred give the neighbouring
+Subject: [PATCH 39/67] Math and MathL: succ and pred give the neighbouring
  numbers
 
 succ(x) was x + ulp(x)*sign(x), so for a negative x it moved down, not

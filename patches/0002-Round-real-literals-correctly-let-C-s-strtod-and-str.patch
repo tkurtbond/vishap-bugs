@@ -1,7 +1,7 @@
 From e8092ed0ab06b994b4750abafca3175ec204bcab Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:10:30 -0400
-Subject: [PATCH 02/48] Round real literals correctly: let C's strtod and
+Subject: [PATCH 02/67] Round real literals correctly: let C's strtod and
  strtof convert them
 
 OPS.Number built 0.ddd by successive divisions by 10 and scaled it by a

@@ -1,0 +1,72 @@
+From 6441b83ae5327e9d4e4fb20bbf365df54508f07f Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:51:23 -0400
+Subject: [PATCH 56/67] Math and MathL: arcsinh and arccosh of a large argument
+
+arcsinh and arccosh reported HypInvTrigClipped and returned
+ln(SqrtInfinity) for an argument above SqrtInfinity/2 (about 9.2E18 for
+REAL, 6.7E153 for LONGREAL), where x * x might overflow:
+Math.arcsinh(1.0E20) was 44.36, not 46.74, and MathL.arcsinh(1.0D200) was
+354.9, not 461.2. Both functions are defined, and finite, for every
+finite argument.
+
+There x * x + 1 and x * x - 1 equal x * x to every place, so the result
+is ln(2x), which is now returned as ln(x) + ln(2), with no error.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Math.Mod  | 6 +++---
+ src/runtime/MathL.Mod | 6 +++---
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/runtime/Math.Mod b/src/runtime/Math.Mod
+index 84381535..af0be78d 100644
+--- a/src/runtime/Math.Mod
++++ b/src/runtime/Math.Mod
+@@ -846,8 +846,8 @@
+ PROCEDURE arcsinh* (x: REAL): REAL;
+ (* arcsinh(x) is the arc hyperbolic sine of x.  All arguments are legal. *)
+ BEGIN
+-  IF ABS(x) > SqrtInfinity * HALF THEN ErrorHandler(HypInvTrigClipped);
+-    IF x > ZERO THEN RETURN ln(SqrtInfinity) ELSE RETURN -ln(SqrtInfinity) END;
++  IF ABS(x) > SqrtInfinity * HALF THEN  (* x * x may overflow, and x * x + 1 is x * x to every place *)
++    IF x > ZERO THEN RETURN ln(x) + ln(TWO) ELSE RETURN -(ln(-x) + ln(TWO)) END
+   ELSIF x < ZERO THEN RETURN -ln( - x + sqrt(x * x + ONE))
+   ELSE RETURN ln(x + sqrt(x * x + ONE))
+   END
+@@ -858,7 +858,7 @@
+    or equal to 1 are legal. *)
+ BEGIN
+   IF x < ONE THEN ErrorHandler(IllegalHypInvTrig); RETURN ZERO
+-  ELSIF x > SqrtInfinity * HALF THEN ErrorHandler(HypInvTrigClipped); RETURN ln(SqrtInfinity)
++  ELSIF x > SqrtInfinity * HALF THEN RETURN ln(x) + ln(TWO)  (* ln(2x), as x * x - 1 is x * x *)
+   ELSE RETURN ln(x + sqrt(x * x - ONE))
+   END
+ END arccosh;
+diff --git a/src/runtime/MathL.Mod b/src/runtime/MathL.Mod
+index 5735d39e..de1309a0 100644
+--- a/src/runtime/MathL.Mod
++++ b/src/runtime/MathL.Mod
+@@ -763,8 +763,8 @@
+ PROCEDURE arcsinh* (x: LONGREAL): LONGREAL;
+ (* arcsinh(x) is the arc hyperbolic sine of x.  All arguments are legal. *)
+ BEGIN
+-  IF ABS(x) > SqrtInfinity*HALF THEN Math.ErrorHandler(Math.HypInvTrigClipped);
+-    IF x > ZERO THEN RETURN ln(SqrtInfinity) ELSE RETURN -ln(SqrtInfinity) END;
++  IF ABS(x) > SqrtInfinity * HALF THEN  (* x * x may overflow, and x * x + 1 is x * x to every place *)
++    IF x > ZERO THEN RETURN ln(x) + ln(TWO) ELSE RETURN -(ln(-x) + ln(TWO)) END
+   ELSIF x < ZERO THEN RETURN -ln(-x + sqrt(x*x + ONE))
+   ELSE RETURN ln(x + sqrt(x*x + ONE))
+   END
+@@ -775,7 +775,7 @@
+    or equal to 1 are legal. *)
+ BEGIN
+   IF x < ONE THEN Math.ErrorHandler(Math.IllegalHypInvTrig); RETURN ZERO
+-  ELSIF x > SqrtInfinity*HALF THEN Math.ErrorHandler(Math.HypInvTrigClipped); RETURN ln(SqrtInfinity)
++  ELSIF x > SqrtInfinity * HALF THEN RETURN ln(x) + ln(TWO)  (* ln(2x), as x * x - 1 is x * x *)
+   ELSE RETURN ln(x + sqrt(x*x-ONE))
+   END
+ END arccosh;
+-- 
+2.55.0
+

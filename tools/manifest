@@ -45,3 +45,22 @@
 46-texts-scan-range|2|TextsScan||
 47-mathl-sqrt-rounding|2|SqrtRound||
 48-math-sin-cos-large|2|LargeTrig||
+49-texts-load-fonts|2|TextsLoadFonts||
+50-texts-store-crlf|2|TextsCrLf||
+51-texts-copy-elem|2|TextsCopyElem||
+52-texts-close-long-name|2|TextsCloseName||
+53-texts-writeint-min|2|TextsWriteIntMin||
+54-math-fraction-denormal|2|FractionDenormal||
+55-math-exp-denormal|2|ExpDenormal||
+56-math-arcsinh-large|2|ArcsinhLarge||
+57-strings-cap-bound|2|StringsCap||
+58-platform-mtime-o2|2|FileDate||
+59-platform-write-partial|2|WritePartial||||./WritePartial | (sleep 2; wc -c)
+60-platform-delay-signal|2|DelaySignal||
+61-platform-pid|2|Pid||
+62-modules-long-names|2|LongNames|||AModuleWithAVeryLongName|
+63-oberon-long-params|2|LongParams||||./LongParams "$(printf '%0300d' 0)"
+64-oberon-log-echo|2|LogEcho||
+65-texts-scan-long-number|2|TextsScanLong||
+66-texts-scan-rounding|2|TextsScanRound||
+67-ethreals-word-offsets|2|EthReals||

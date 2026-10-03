@@ -1,0 +1,49 @@
+From f453428828716a1cca443b623d2503a47693a53a Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 16:16:33 -0400
+Subject: [PATCH 67/67] ethReals: set H and L, the offsets of a LONGREAL's two
+ halves
+
+ExpoL, SetExpoL, RealL and IntL read and write a LONGREAL's high and
+low 32 bits at the offsets H and L, which the comment says to set for
+the machine's byte order, and which the module used to set with a
+dynamic test ("7.11.1995 jt: dynamic endianess test"). Nothing sets them
+now, so both are 0, and on a little-endian machine every one of these
+procedures uses the low half for the high one: ethReals.ExpoL(12345.678D0)
+is 1163, not 1036. ethReals.Ten uses ExpoL and SetExpoL, and
+ethStrings.RealToStr and RealToFixStr use ExpoL, so
+ethStrings.RealToStr(12345.678D0, s) gave "0.000000000000005D+042", and
+RealToStr of 0.25 and of 3.0 gave "0".
+
+The module body now sets H and L from Platform.LittleEndian.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/library/s3/ethReals.Mod | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/library/s3/ethReals.Mod b/src/library/s3/ethReals.Mod
+index 484b186c..6a388852 100644
+--- a/src/library/s3/ethReals.Mod
++++ b/src/library/s3/ethReals.Mod
+@@ -10,7 +10,7 @@
+ Swiss Federal Institute of Technology Z…rich.
+ *)
+ 
+-IMPORT SYSTEM, Modules;
++IMPORT SYSTEM, Modules, Platform;
+ 
+ (* Bernd Moesli
+   Seminar for Applied Mathematics
+@@ -224,6 +224,8 @@
+ END RealX;
+ 
+ BEGIN
++  (* the offsets of the high and low 32 bits of a LONGREAL *)
++  IF Platform.LittleEndian THEN H := 4; L := 0 ELSE H := 0; L := 4 END;
+   RealX(03FF0000000000000H, tene[0]);
+   RealX(04024000000000000H, tene[1]);    (*  1 *)
+   RealX(04059000000000000H, tene[2]);    (*  2 *)
+-- 
+2.55.0
+

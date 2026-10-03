@@ -19,6 +19,10 @@ Nothing here has been submitted to voc's repository.
   issue text. Compile one with `voc -O2 File.Mod -m` (or `-OC`, where the
   issue says so) and run `./File`.
 - `patches/00NN-*.patch`: the fix, `git format-patch` of one commit.
+- `differences.md`: where voc does otherwise than one might expect, or
+  than a comment in its source says, without that being a bug: wrong
+  claims (in comments or elsewhere) and design choices, each with what
+  was found. Nothing there has a patch.
 - `notes/NN-name/`: longer accounts of two of the bugs, 13 and 14.
 - `tools/`: what produced and checked all of the above, described in
   "Reproducing the results" below.
@@ -42,9 +46,11 @@ Most patches are independent of one another, but some are not:
   in the same function. The "Needs" column below lists them, and so does
   each issue text.
 - **After**: 03 changes `OPM.WriteReal`, which 01 also changes, 14 changes
-  `SYSTEM.h` next to 09's `CAP`, and 20 changes `Strings.Insert`, which 18
-  also changes. Each of these is made to apply after the earlier patch,
-  though it does not need it.
+  `SYSTEM.h` next to 09's `CAP`, 20 changes `Strings.Insert`, which 18
+  also changes, 54 changes lines of `Math` next to 48's, 61 changes
+  `Files.GetTempName`, which 15 also changes, and 65 changes
+  `Texts.Scan` where 46 does. Each of these is made to apply after the
+  earlier patch, though it does not need it.
 - **Confidence tests**: 03, 05, 30, 32, 38, 45 and 47 change the expected
   output of the confidence tests `math`, `out` or `texts`. The expected
   output each one gives is for the series up to it. Applied out of order,
@@ -61,6 +67,8 @@ The chains are:
 - 30, 31 ← 32 (Out.Real and LongReal).
 - 15 ← 17 (Files).
 - 28 ← 29 (Strings.StrToReal).
+- 42 ← 54 ← 55 (Math and MathL on denormal numbers).
+- 65 ← 66 (Texts.Scan).
 
 ## Reproducing the results
 
@@ -69,8 +77,11 @@ Build voc twice with `make all`, at `master` and with the series applied
 
 - `tools/runall.sh LABEL VOCDIR OUTDIR` compiles and runs every reproducer
   listed in `tools/manifest` (issue, size model, modules, standard input,
-  setup) and writes the transcripts. The issue texts use those labelled
-  `master` and `new`.
+  setup, modules compiled first, a command to run in place of the
+  program) and writes the transcripts. The issue texts use those labelled
+  `master` and `new`. Issue 58 does not show on Linux; its FreeBSD
+  transcripts, from voc built there at `master` and with the series, are
+  in `tools/issues.py`.
 - `tools/gen.py VOCCLONE OUTDIR` writes `issues/*.md` and this README from
   `tools/issues.py` (each issue's title and summary, and the table of
   dependencies), `tools/README.head.md`, the reproducers, the transcripts,
@@ -80,9 +91,11 @@ Build voc twice with `make all`, at `master` and with the series applied
 - `tools/each-commit.sh VOCCLONE` builds every commit of the series with
   `make all` and reports whether its confidence tests pass.
 - `tools/checks/run.sh VOCDIR` makes the counts quoted in patches 0032,
-  0047 and 0048: Out.LongReal's digits for 2000 random doubles, Math.sqrt
-  and MathL.sqrt for 3003 REALs and 3007 doubles, and sin, cos and tan for
-  407 arguments from 9100 to 4.2E307, compared with the C library's.
+  0047, 0048 and 0066: Out.LongReal's digits for 2000 random doubles,
+  Math.sqrt and MathL.sqrt for 3003 REALs and 3007 doubles, sin, cos and
+  tan for 407 arguments from 9100 to 4.2E307, compared with the C
+  library's, and Texts.Scan for 2000 REAL and 1000 LONGREAL numerals,
+  compared with the correctly rounded values.
   `tools/checks/literals.sh VOCDIR SRCDIR` makes those in patch 0002, for
   the real literals in voc's `src/`.
 
@@ -138,3 +151,22 @@ Build voc twice with `make all`, at `master` and with the series applied
 | 46 | [Texts.Scan stops the program with HALT(40) on a large exponent](issues/46-texts-scan-range.md) | [0046](patches/0046-Texts.Scan-a-number-with-a-large-exponent-is-read-no.patch) |  |
 | 47 | [Math.sqrt and MathL.sqrt are not correctly rounded](issues/47-mathl-sqrt-rounding.md) | [0047](patches/0047-Math.sqrt-and-MathL.sqrt-correctly-rounded.patch) |  |
 | 48 | [Math and MathL: sin, cos and tan of a large argument are 0](issues/48-math-sin-cos-large.md) | [0048](patches/0048-Math-and-MathL-sin-cos-and-tan-of-a-large-argument.patch) |  |
+| 49 | [Texts: storing a text loaded from a file stops with a NIL access](issues/49-texts-load-fonts.md) | [0049](patches/0049-Texts-a-loaded-text-s-runs-have-their-fonts.patch) |  |
+| 50 | [Texts.Store writes CR LF of a plain text as two line ends](issues/50-texts-store-crlf.md) | [0050](patches/0050-Texts.Store-CR-LF-in-a-plain-text-is-one-line-end.patch) |  |
+| 51 | [Texts.Save and Copy stop with a NIL access on an element that is not copied](issues/51-texts-copy-elem.md) | [0051](patches/0051-Texts.Save-and-Copy-an-element-that-is-not-copied-is.patch) |  |
+| 52 | [Texts.Close traps on a file name of 60 characters or more](issues/52-texts-close-long-name.md) | [0052](patches/0052-Texts.Close-file-names-of-any-length-Files-takes.patch) |  |
+| 53 | [Texts.WriteInt of MIN(SYSTEM.INT64) ignores the width](issues/53-texts-writeint-min.md) | [0053](patches/0053-Texts.WriteInt-MIN-SYSTEM.INT64-is-padded-to-the-wid.patch) |  |
+| 54 | [Math and MathL: fraction, ulp and scale are wrong for denormal numbers](issues/54-math-fraction-denormal.md) | [0054](patches/0054-Math-and-MathL-fraction-ulp-and-scale-of-denormal-nu.patch) | 42 (after 48) |
+| 55 | [Math.exp and MathL.exp give 0 where the result is a denormal number](issues/55-math-exp-denormal.md) | [0055](patches/0055-Math.exp-and-MathL.exp-results-in-the-denormal-range.patch) | 54 |
+| 56 | [Math and MathL: arcsinh and arccosh of a large argument are wrong](issues/56-math-arcsinh-large.md) | [0056](patches/0056-Math-and-MathL-arcsinh-and-arccosh-of-a-large-argume.patch) |  |
+| 57 | [Strings.Cap runs off the end of an array with no 0X](issues/57-strings-cap-bound.md) | [0057](patches/0057-Strings.Cap-stop-at-the-end-of-the-array.patch) |  |
+| 58 | [Platform.MTimeAsClock (Files.GetDate) reads past its LONGINT under -O2](issues/58-platform-mtime-o2.md) | [0058](patches/0058-Platform-localtime-of-a-time-held-in-a-LONGINT.patch) |  |
+| 59 | [Platform.Write loses what a partial write leaves](issues/59-platform-write-partial.md) | [0059](patches/0059-Platform.Write-write-all-of-the-bytes.patch) |  |
+| 60 | [Platform.Delay returns early when a signal arrives](issues/60-platform-delay-signal.md) | [0060](patches/0060-Platform.Delay-sleep-the-whole-time-when-a-signal-ar.patch) |  |
+| 61 | [Platform.PID is wrong under -O2, and temporary file names can collide](issues/61-platform-pid.md) | [0061](patches/0061-Platform.PID-a-LONGINT-which-holds-any-process-id.patch) | (after 15) |
+| 62 | [Modules.ThisMod and ThisCommand fail for long names](issues/62-modules-long-names.md) | [0062](patches/0062-Heap-and-Modules-module-and-command-names-of-any-len.patch) |  |
+| 63 | [Oberon.Par cuts command-line arguments to 255 characters](issues/63-oberon-long-params.md) | [0063](patches/0063-Oberon.Par-command-line-arguments-of-any-length.patch) |  |
+| 64 | [Oberon.Log echoes text that is deleted or changed](issues/64-oberon-log-echo.md) | [0064](patches/0064-Oberon.Log-echo-only-the-text-inserted.patch) |  |
+| 65 | [Texts.Scan traps on a number of 32 digits or more](issues/65-texts-scan-long-number.md) | [0065](patches/0065-Texts.Scan-numbers-of-32-digits-or-more.patch) | (after 46) |
+| 66 | [Texts.Scan does not read real numbers correctly rounded](issues/66-texts-scan-rounding.md) | [0066](patches/0066-Texts.Scan-real-numbers-correctly-rounded.patch) | 65 |
+| 67 | [ethReals reads the wrong half of a LONGREAL, so ethStrings.RealToStr writes nonsense](issues/67-ethreals-word-offsets.md) | [0067](patches/0067-ethReals-set-H-and-L-the-offsets-of-a-LONGREAL-s-two.patch) |  |

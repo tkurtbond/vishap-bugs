@@ -1,7 +1,7 @@
 From 7b0c437585f750b89562f77ce261d9300aa24061 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:23:56 -0400
-Subject: [PATCH 14/48] Heap.GC: store the callee-saved registers before
+Subject: [PATCH 14/67] Heap.GC: store the callee-saved registers before
  scanning the stack
 
 The collector finds roots on the stack only. GC's register pressure

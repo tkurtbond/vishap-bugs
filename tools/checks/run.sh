@@ -1,5 +1,5 @@
 #!/bin/sh
-# run.sh VOCDIR: run the checks behind the counts in issues 32, 47 and 48
+# run.sh VOCDIR: run the checks behind the counts in issues 32, 47, 48 and 66
 # with the voc installed in VOCDIR, comparing with the C library (Linux:
 # libm.so.6, for trigcheck.py and sqrtcheckr.py).
 [ $# -eq 1 ] || { echo "usage: $0 VOCDIR" >&2; exit 2; }
@@ -14,4 +14,6 @@ voc -OC SqrtBitsR.Mod -m >/dev/null && ./SqrtBitsR < "$C/SqrtBitsR.vals" > SqrtB
   { printf 'Math.sqrt (issue 47): '; python3 "$C/sqrtcheckr.py" "$C/SqrtBitsR.vals" SqrtBitsR.out; }
 voc -O2 TrigBits.Mod -m >/dev/null && ./TrigBits < "$C/TrigBits.vals" > TrigBits.out &&
   { printf 'sin, cos, tan (issue 48): '; python3 "$C/trigcheck.py" "$C/TrigBits.vals" TrigBits.out; }
+cp "$C/ScanBits.vals" . && voc -O2 ScanBits.Mod -m >/dev/null && ./ScanBits > ScanBits.out &&
+  { printf 'Texts.Scan (issue 66): '; python3 "$C/scancheck.py" "$C/ScanBits.vals" ScanBits.out; }
 echo "outputs in $d"

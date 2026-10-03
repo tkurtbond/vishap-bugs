@@ -1,7 +1,7 @@
 From 9801b595a58f4ef30cc0a5b2200f662fceef1de1 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:26:29 -0400
-Subject: [PATCH 16/48] Files.Delete of an open file reports success
+Subject: [PATCH 16/67] Files.Delete of an open file reports success
 
 Delete first deregisters the name: a File open under it is renamed to a
 temporary name (deleted when the File is finalized). The unlink of the

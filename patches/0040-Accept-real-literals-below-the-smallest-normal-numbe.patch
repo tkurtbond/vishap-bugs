@@ -1,7 +1,7 @@
 From 1f29e7d752e8c8d21ef9999b223d076e35bdbcf3 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:20:01 -0400
-Subject: [PATCH 40/48] Accept real literals below the smallest normal number
+Subject: [PATCH 40/67] Accept real literals below the smallest normal number
 
 Needs "Round real literals correctly" and "Accept real literals from
 1.0E38 to MAX(REAL)" first: it changes the lines they change, and it

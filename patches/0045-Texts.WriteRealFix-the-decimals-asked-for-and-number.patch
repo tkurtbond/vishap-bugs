@@ -1,7 +1,7 @@
 From c6e38cea4e57f0b137c688c28a212bdae16bcc8b Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:36:40 -0400
-Subject: [PATCH 45/48] Texts.WriteRealFix: the decimals asked for, and numbers
+Subject: [PATCH 45/67] Texts.WriteRealFix: the decimals asked for, and numbers
  of any size
 
 WriteRealFix scaled x to its digits in REAL arithmetic and wrote at most

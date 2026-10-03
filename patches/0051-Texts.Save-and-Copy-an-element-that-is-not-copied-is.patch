@@ -1,0 +1,77 @@
+From 29ddcdd2c18eed1d01297a51ab1b5255de6b1b80 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:46:59 -0400
+Subject: [PATCH 51/67] Texts.Save and Copy: an element that is not copied is
+ left out
+
+CloneElem asks an element's handler for a copy (a CopyMsg) and returns
+msg.e, NIL when the handler answers no CopyMsg. Save and Copy linked that
+NIL into the buffer, so a Save of a text with such an element, or a Copy
+of a buffer holding one, stopped the program with a NIL access, then or
+on the next use of the buffer.
+
+Save and Copy now leave out an element whose handler makes no copy, and
+the buffer's length counts only what was copied.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 22 ++++++++++++++--------
+ 1 file changed, 14 insertions(+), 8 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index acc86b81..f68e3982 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -242,14 +242,17 @@
+   END OpenBuf;
+ 
+   PROCEDURE Copy* (SB, DB: Buffer);
+-    VAR u, v, vn: Run;
+-  BEGIN u := SB.head.next; v := DB.head.prev;
++    VAR u, v, vn: Run; left: LONGINT;
++  BEGIN u := SB.head.next; v := DB.head.prev; left := 0;
+     WHILE u # SB.head DO
+       IF u IS Piece THEN vn := ClonePiece(u(Piece)) ELSE vn := CloneElem(u(Elem)) END;
+-      v.next := vn; vn.prev := v; v := vn; u := u.next
++      IF vn # NIL THEN v.next := vn; vn.prev := v; v := vn
++      ELSE INC(left)  (* an element that its handler does not copy is left out *)
++      END;
++      u := u.next
+     END;
+     v.next := DB.head; DB.head.prev := v;
+-    INC(DB.len, SB.len)
++    INC(DB.len, SB.len - left)
+   END Copy;
+ 
+   PROCEDURE Recall* (VAR B: Buffer);
+@@ -260,20 +263,23 @@
+   (** Texts **)
+ 
+   PROCEDURE Save* (T: Text; beg, end: LONGINT; B: Buffer);
+-    VAR u, v, w, wn: Run; uo, ud, vo, vd: LONGINT;
++    VAR u, v, w, wn: Run; uo, ud, vo, vd, left: LONGINT;
+   BEGIN Find(T, beg, u, uo, ud); Find(T, end, v, vo, vd);
+-    w := B.head.prev;
++    w := B.head.prev; left := 0;
+     WHILE u # v DO
+       IF u IS Piece THEN wn := ClonePiece(u(Piece)); DEC(wn.len, ud); INC(wn(Piece).org, ud)
+       ELSE wn := CloneElem(u(Elem))
+       END;
+-      w.next := wn; wn.prev := w; w := wn; u := u.next; ud := 0
++      IF wn # NIL THEN w.next := wn; wn.prev := w; w := wn
++      ELSE INC(left)  (* an element that its handler does not copy is left out *)
++      END;
++      u := u.next; ud := 0
+     END;
+     IF vd > 0 THEN (*v IS Piece*) wn := ClonePiece(v(Piece)); wn.len := vd - ud; INC(wn(Piece).org, ud);
+       w.next := wn; wn.prev := w; w := wn
+     END;
+     w.next := B.head; B.head.prev := w;
+-    INC(B.len, end - beg)
++    INC(B.len, end - beg - left)
+   END Save;
+ 
+   PROCEDURE Insert* (T: Text; pos: LONGINT; B: Buffer);
+-- 
+2.55.0
+

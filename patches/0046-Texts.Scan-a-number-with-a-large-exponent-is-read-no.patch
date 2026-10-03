@@ -1,7 +1,7 @@
 From dec44d99714b3f97807fbdd83c87f4a8c45a059f Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:37:56 -0400
-Subject: [PATCH 46/48] Texts.Scan: a number with a large exponent is read, not
+Subject: [PATCH 46/67] Texts.Scan: a number with a large exponent is read, not
  a HALT(40)
 
 Scan stopped the program with HALT(40) on a real number whose exponent

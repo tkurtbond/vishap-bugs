@@ -1,0 +1,82 @@
+From db5f45f4aa1cecfa9c519c88c409d55d2672bcb0 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:46:33 -0400
+Subject: [PATCH 50/67] Texts.Store: CR LF in a plain text is one line end
+
+A text opened from a plain text file reads CR LF as one CR (Read skips
+the LF), but Store turned every LF of it into a CR, so CR LF was stored as
+CR CR: a file with CR LF line ends, opened and stored with Texts.Close,
+had twice as many lines when it was opened again.
+
+Store now writes CR LF of a plain text piece as one CR, and LF alone as
+CR as before. The lengths it writes, of the runs and of the text, leave
+out the LFs dropped, so the positions of the elements after them stay
+right.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 26 +++++++++++++++++++++-----
+ 1 file changed, 21 insertions(+), 5 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index 8dd7469e..acc86b81 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -841,13 +841,26 @@
+   END Open;
+ 
+   PROCEDURE Store* (VAR r: Files.Rider; T: Text);
+-    VAR r1: Files.Rider; u, un: Run; e: Elem; org, pos, delta, hlen, rlen: LONGINT; ecnt, fcnt: SHORTINT; ch: CHAR;  (* << *)
++    VAR r1: Files.Rider; u, un: Run; e: Elem; org, pos, delta, hlen, rlen, len: LONGINT; ecnt, fcnt: SHORTINT; ch, prev: CHAR;  (* << *)
+       fno: SYSTEM.INT8;
+       msg: FileMsg; iden: IdentifyMsg;
+       mods, procs: ARRAY 64, 32 OF CHAR;
+       fnts: ARRAY 32 OF FontsFont;
+       block: ARRAY 1024 OF CHAR;
+ 
++    PROCEDURE StoredLen (u: Run): LONGINT;  (* u's length less the LF of each CR LF in a plain text piece *)
++      VAR r: Files.Rider; n, len: LONGINT; ch, prev: CHAR;
++    BEGIN len := u.len;
++      IF (u IS Piece) & u(Piece).ascii THEN
++        Files.Set(r, u(Piece).file, u(Piece).org); prev := 0X; n := u.len;
++        WHILE n > 0 DO Files.Read(r, ch); DEC(n);
++          IF (ch = 0AX) & (prev = CR) THEN DEC(len) END;
++          prev := ch
++        END
++      END;
++      RETURN len
++    END StoredLen;
++
+     PROCEDURE StoreElem (VAR r: Files.Rider; pos: LONGINT; e: Elem);
+       VAR r1: Files.Rider; org, span: LONGINT; eno: SYSTEM.INT8;
+     BEGIN COPY(iden.mod, mods[ecnt]); COPY(iden.proc, procs[ecnt]); eno := 1;
+@@ -872,9 +885,9 @@
+         IF fno = fcnt THEN INC(fcnt); Files.WriteString(msg.r, u.fnt.name) END;
+         Files.Write(msg.r, u.col); Files.Write(msg.r, u.voff)
+       END;
+-      IF u IS Piece THEN rlen := u.len; un := u.next;
++      IF u IS Piece THEN rlen := StoredLen(u); INC(delta, u.len - rlen); un := u.next;
+         WHILE (un IS Piece) & (un.fnt = u.fnt) & (un.col = u.col) & (un.voff = u.voff) DO
+-          INC(rlen, un.len); un := un.next
++          len := StoredLen(un); INC(delta, un.len - len); INC(rlen, len); un := un.next
+         END;
+         Files.WriteLInt(msg.r, rlen); INC(pos, rlen); u := un
+       ELSIF iden.mod[0] # 0X THEN StoreElem(msg.r, pos, u(Elem)); INC(pos); u := u.next
+@@ -888,9 +901,12 @@
+     WHILE u # T.head DO
+       IF u IS Piece THEN
+         WITH u: Piece DO
+-          IF u.ascii THEN Files.Set(r1, u.file, u.org); delta := u.len;  (* << LF to CR *)
++          IF u.ascii THEN Files.Set(r1, u.file, u.org); delta := u.len; prev := 0X;  (* << LF to CR *)
+             WHILE delta > 0 DO Files.Read(r1, ch); DEC(delta);
+-              IF ch = 0AX THEN Files.Write(msg.r, CR) ELSE Files.Write(msg.r, ch) END
++              IF ch # 0AX THEN Files.Write(msg.r, ch)
++              ELSIF prev # CR THEN Files.Write(msg.r, CR)
++              END;  (* CR LF is one line end, as Read reads it *)
++              prev := ch
+             END
+           ELSE Files.Set(r1, u.file, u.org); delta := u.len;
+             WHILE delta > LEN(block) DO Files.ReadBytes(r1, block, LEN(block));
+-- 
+2.55.0
+

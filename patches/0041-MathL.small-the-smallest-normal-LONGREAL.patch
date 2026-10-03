@@ -1,7 +1,7 @@
 From d9c6c45b10b86eb78255b0e1ae8599bfdd6bc158 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:18:51 -0400
-Subject: [PATCH 41/48] MathL.small: the smallest normal LONGREAL
+Subject: [PATCH 41/67] MathL.small: the smallest normal LONGREAL
 
 Needs "Accept real literals below the smallest normal number" (and so
 the two fixes it needs) to compile, and "Write real constants to C

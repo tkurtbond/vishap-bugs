@@ -1,0 +1,48 @@
+From 9257fe8332d311a6cf2eef899881642b19d0901e Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:47:36 -0400
+Subject: [PATCH 53/67] Texts.WriteInt: MIN(SYSTEM.INT64) is padded to the
+ width
+
+WriteInt wrote the most negative 64-bit integer as the fixed string
+" -9223372036854775808", whatever the width n: one blank where n asked
+for more, and one where n asked for none. Every other number is padded
+with blanks to n characters.
+
+WriteInt now takes that number's digits from a constant, since it has no
+negation, and pads it like any other number.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 14 ++++++--------
+ 1 file changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index 8cf5b8bf..0d299219 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -568,15 +568,13 @@
+     i: INTEGER; x0: SYSTEM.INT64;
+     a: ARRAY 24 OF CHAR;
+   BEGIN i := 0;
+-    IF x < 0 THEN
+-      IF x = MIN(SYSTEM.INT64) THEN WriteString(W, " -9223372036854775808"); RETURN
+-      ELSE DEC(n); x0 := -x
+-      END
+-    ELSE x0 := x
++    IF x = MIN(SYSTEM.INT64) THEN a := "8085774586302733229"; i := 19  (* -x does not exist: its digits, last first *)
++    ELSE x0 := ABS(x);
++      REPEAT
++        a[i] := CHR(x0 MOD 10 + 30H); x0 := x0 DIV 10; INC(i)
++      UNTIL x0 = 0
+     END;
+-    REPEAT
+-      a[i] := CHR(x0 MOD 10 + 30H); x0 := x0 DIV 10; INC(i)
+-    UNTIL x0 = 0;
++    IF x < 0 THEN DEC(n) END;
+     WHILE n > i DO Write(W, " "); DEC(n) END;
+     IF x < 0 THEN Write(W, "-") END;
+     REPEAT DEC(i); Write(W, a[i]) UNTIL i = 0
+-- 
+2.55.0
+

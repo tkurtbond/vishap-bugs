@@ -1,0 +1,161 @@
+From 91054ffa75fbba299fa05279c7e584211c21cabe Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:50:07 -0400
+Subject: [PATCH 54/67] Math and MathL: fraction, ulp and scale of denormal
+ numbers
+
+fraction, ulp and scale took every number to be normal. fraction of a
+denormal number put its bits, which have no hidden bit, under a normal
+exponent: Math.fraction(3 * 2^-149) was 1.0000004, not 1.5. scale gave
+small (2^-126, 2^-1022) for any result below the normal range, where
+the result is a denormal number or 0: Math.scale(1.0, -140) was 2^-126,
+not 2^-140; and it kept the bits of a denormal x under the new exponent,
+so Math.scale(3 * 2^-149, 10) was (1 + 3 * 2^-23) * 2^-117, not
+3 * 2^-139. ulp of a denormal number, whose last place is that of the
+smallest denormal, was small or less (MathL.ulp(3 * 2^-1074) was 0 at
+voc's master).
+
+fraction now scales a denormal number by an exact power of two to a
+normal one first, as exponent does. scale builds the result from
+fraction(x), and makes one below the normal range, rounded once, by
+scaling to 2^places times it and multiplying by 2^-places, exactly; one
+below half the smallest denormal is 0. ulp is at least the smallest
+denormal.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Math.Mod  | 19 +++++++++++++++----
+ src/runtime/MathL.Mod | 19 +++++++++++++++----
+ 2 files changed, 30 insertions(+), 8 deletions(-)
+
+diff --git a/src/runtime/Math.Mod b/src/runtime/Math.Mod
+index 5b0265ee..c3a254f5 100644
+--- a/src/runtime/Math.Mod
++++ b/src/runtime/Math.Mod
+@@ -130,6 +130,7 @@
+   LnInfinity: REAL;     (* natural log of infinity *)
+   LnSmall: REAL;        (* natural log of very small number *)
+   SqrtInfinity: REAL;   (* square root of infinity *)
++  tiny: REAL;           (* 2^-places, for scaling to a denormal *)
+   TanhMax: REAL;        (* maximum Tanh value *)
+   t: REAL;              (* internal variables *)
+   twoOverPi: ARRAY 12 OF SYSTEM.INT64;  (* the bits of 2/pi, for ReduceLarge *)
+@@ -153,6 +154,8 @@
+   VAR s: SET;
+ BEGIN
+   IF x = ZERO THEN RETURN ZERO
++  ELSIF SYSTEM.LSH(SYSTEM.VAL(SYSTEM.INT32, x), -23) MOD 256 = 0 THEN
++    RETURN fraction(x * 33554432.0)  (* a denormal: scaled by 2^25, exactly, it is normal *)
+   ELSE
+     s := SYSTEM.VAL(SYSTEM.SET32, x) * nMask + {24..29};
+     RETURN SYSTEM.VAL(REAL, s) * 2.0;
+@@ -192,14 +195,17 @@
+   The value of the call scale(x,n) shall be the value x*radix^n if such
+   a value exists; otherwise an execption shall occur and may be raised.
+ *)
+-  VAR exp: LONGINT; lexp: SET;
++  VAR exp: LONGINT; lexp: SET; f: REAL;
+ BEGIN
+   IF x = ZERO THEN RETURN ZERO END;
+   exp := exponent(x) + n;                           (* new exponent *)
+   IF    exp > expoMax THEN RETURN large * sign(x)   (* exception raised here *)
+-  ELSIF exp < expoMin THEN RETURN small * sign(x)   (* exception here as well *)
++  ELSIF exp < expoMin - places THEN RETURN ZERO     (* less than half the smallest denormal *)
++  ELSIF exp < expoMin THEN                          (* a denormal: rounded once, exactly scaled *)
++    RETURN scale(x, n + places) * tiny
+   END;
+-  lexp := SYSTEM.VAL(SYSTEM.SET32, x) * nMask       (* sign and significand *)
++  f := fraction(x);  (* in a variable: SYSTEM.VAL of a call converts its value *)
++  lexp := SYSTEM.VAL(SYSTEM.SET32, f) * nMask  (* sign and significand *)
+         + SYSTEM.VAL(SYSTEM.SET32, SYSTEM.LSH(exp+expOffset, 23));   (* shifted exponent bits *)
+   RETURN SYSTEM.VAL(REAL, lexp)
+ END scale;
+@@ -210,8 +216,11 @@
+    real number type equal to a unit in the last place of `x', if such a
+    value exists; otherwise an exception shall occur and may be raised.
+ *)
++  VAR e: INTEGER;
+ BEGIN
+-  RETURN scale(ONE, exponent(x)-places+1)
++  e := exponent(x) - places + 1;
++  IF e < expoMin - places + 1 THEN e := expoMin - places + 1 END;  (* a denormal's *)
++  RETURN scale(ONE, e)
+ END ulp;
+ 
+ PROCEDURE succ*(x: REAL): REAL;
+@@ -907,6 +916,8 @@
+ 
+ BEGIN
+   ErrorHandler := DefaultErrorHandler;
++  tiny := ONE; WHILE exponent(tiny) > -places DO tiny := tiny * HALF END;
++
+ 
+   (* the bits of 2/pi, for ReduceLarge *)
+   twoOverPi[ 0] := 0A2F983H; twoOverPi[ 1] := 06E4E44H; twoOverPi[ 2] := 01529FCH; twoOverPi[ 3] := 02757D1H;
+diff --git a/src/runtime/MathL.Mod b/src/runtime/MathL.Mod
+index 69bd0fc5..eab4af97 100644
+--- a/src/runtime/MathL.Mod
++++ b/src/runtime/MathL.Mod
+@@ -113,6 +113,7 @@
+   LnInfinity:   LONGREAL;             (* natural log of infinity *)
+   LnSmall:      LONGREAL;             (* natural log of very small number *)
+   SqrtInfinity: LONGREAL;             (* square root of infinity *)
++  tiny:         LONGREAL;             (* 2^-places, for scaling to a denormal *)
+   TanhMax:      LONGREAL;             (* maximum Tanh value *)
+   NumberMask:   SYSTEM.SET64;         (* Sign and significand, {0..51, 63} *)
+   ExponentMask: SYSTEM.SET64;         (* Exponent part, {53..62} *)
+@@ -135,6 +136,8 @@
+   VAR s: SYSTEM.SET64;
+ BEGIN
+   IF x = ZERO THEN RETURN ZERO
++  ELSIF SYSTEM.LSH(SYSTEM.VAL(SYSTEM.INT64, x), -52) MOD 2048 = 0 THEN
++    RETURN fraction(x * 1073741824.0D0 * 1073741824.0D0)  (* a denormal: scaled by 2^60, exactly, it is normal *)
+   ELSE
+     s := SYSTEM.VAL(SYSTEM.SET64, x) * NumberMask + ZeroExponent;
+     RETURN SYSTEM.VAL(LONGREAL, s) * 2.0;
+@@ -179,14 +182,17 @@
+   The value of the call scale(x,n) shall be the value x*radix^n if such
+   a value exists; otherwise an execption shall occur and may be raised.
+ *)
+-  VAR exp: HUGEINT; lexp: SYSTEM.SET64;
++  VAR exp: HUGEINT; lexp: SYSTEM.SET64; f: LONGREAL;
+ BEGIN
+   IF x = ZERO THEN RETURN ZERO END;
+   exp := exponent(x) + n;                           (* new exponent *)
+   IF    exp > expoMax THEN RETURN large * sign(x)   (* exception raised here *)
+-  ELSIF exp < expoMin THEN RETURN small * sign(x)   (* exception here as well *)
++  ELSIF exp < expoMin - places THEN RETURN ZERO     (* less than half the smallest denormal *)
++  ELSIF exp < expoMin THEN                          (* a denormal: rounded once, exactly scaled *)
++    RETURN scale(x, n + places) * tiny
+   END;
+-  lexp := SYSTEM.VAL(SYSTEM.SET64, x) * NumberMask  (* sign and significand *)
++  f := fraction(x);  (* in a variable: SYSTEM.VAL of a call converts its value *)
++  lexp := SYSTEM.VAL(SYSTEM.SET64, f) * NumberMask  (* sign and significand *)
+         + SYSTEM.VAL(SYSTEM.SET64, SYSTEM.LSH(exp + expOffset, 52));  (* shifted exponent bits *)
+   RETURN SYSTEM.VAL(LONGREAL, lexp)
+ END scale;
+@@ -197,8 +203,11 @@
+    real number type equal to a unit in the last place of `x', if such a
+    value exists; otherwise an exception shall occur and may be raised.
+ *)
++  VAR e: INTEGER;
+ BEGIN
+-  RETURN scale(ONE, exponent(x)-places+1)
++  e := exponent(x) - places + 1;
++  IF e < expoMin - places + 1 THEN e := expoMin - places + 1 END;  (* a denormal's *)
++  RETURN scale(ONE, e)
+ END ulp;
+ 
+ PROCEDURE succ*(x: LONGREAL): LONGREAL;
+@@ -837,6 +846,8 @@
+   ZeroExponent := {};
+   FOR i := 53 TO 61 DO INCL(ZeroExponent, i) END;
+ 
++  tiny := ONE; WHILE exponent(tiny) > -places DO tiny := tiny * HALF END;
++
+   (* determine some fundamental constants used by hyperbolic trig functions *)
+   em           := ulp(ONE);
+   LnInfinity   := ln(large);
+-- 
+2.55.0
+

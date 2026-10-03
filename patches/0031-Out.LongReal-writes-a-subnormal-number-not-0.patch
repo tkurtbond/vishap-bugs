@@ -1,7 +1,7 @@
 From 440485548d3cf96dad122666826d34ec4bd09153 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:41:37 -0400
-Subject: [PATCH 31/48] Out.LongReal writes a subnormal number, not 0
+Subject: [PATCH 31/67] Out.LongReal writes a subnormal number, not 0
 
 RealP took a zero exponent field for zero, so a subnormal LONGREAL (from
 4.9D-324 up to 2.2D-308) was written 0.0D+000. It is now scaled by 10^20

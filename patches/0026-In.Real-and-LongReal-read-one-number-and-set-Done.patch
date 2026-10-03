@@ -1,7 +1,7 @@
 From a9f78773a6bf5ddf25091dd986c6dad54a25736b Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:37:18 -0400
-Subject: [PATCH 26/48] In.Real and LongReal read one number, and set Done
+Subject: [PATCH 26/67] In.Real and LongReal read one number, and set Done
 
 They read the rest of the line into a 16 character array and converted
 that: a number of more than 15 characters was cut short, the characters

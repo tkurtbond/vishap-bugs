@@ -1,7 +1,7 @@
 From fd6d6f773bdd5e0dab2d1b2d2e660d46f0f6540e Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:12:44 -0400
-Subject: [PATCH 04/48] Accept real literals from 1.0E38 to MAX(REAL), 1.0D308
+Subject: [PATCH 04/67] Accept real literals from 1.0E38 to MAX(REAL), 1.0D308
  to MAX(LONGREAL)
 
 Needs "Round real literals correctly" first (it changes the same lines

@@ -1,7 +1,7 @@
 From 4bdd637c658cfc7e622193ec009c92a8caf615d0 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:13:29 -0400
-Subject: [PATCH 05/48] Make MAX(REAL) and MAX(LONGREAL) the largest REAL and
+Subject: [PATCH 05/67] Make MAX(REAL) and MAX(LONGREAL) the largest REAL and
  LONGREAL
 
 Needs "Write real constants to C exactly" first: the exact

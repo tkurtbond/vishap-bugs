@@ -19,6 +19,10 @@ Nothing here has been submitted to voc's repository.
   issue text. Compile one with `voc -O2 File.Mod -m` (or `-OC`, where the
   issue says so) and run `./File`.
 - `patches/00NN-*.patch`: the fix, `git format-patch` of one commit.
+- `differences.md`: where voc does otherwise than one might expect, or
+  than a comment in its source says, without that being a bug: wrong
+  claims (in comments or elsewhere) and design choices, each with what
+  was found. Nothing there has a patch.
 - `notes/NN-name/`: longer accounts of two of the bugs, 13 and 14.
 - `tools/`: what produced and checked all of the above, described in
   "Reproducing the results" below.
@@ -42,9 +46,11 @@ Most patches are independent of one another, but some are not:
   in the same function. The "Needs" column below lists them, and so does
   each issue text.
 - **After**: 03 changes `OPM.WriteReal`, which 01 also changes, 14 changes
-  `SYSTEM.h` next to 09's `CAP`, and 20 changes `Strings.Insert`, which 18
-  also changes. Each of these is made to apply after the earlier patch,
-  though it does not need it.
+  `SYSTEM.h` next to 09's `CAP`, 20 changes `Strings.Insert`, which 18
+  also changes, 54 changes lines of `Math` next to 48's, 61 changes
+  `Files.GetTempName`, which 15 also changes, and 65 changes
+  `Texts.Scan` where 46 does. Each of these is made to apply after the
+  earlier patch, though it does not need it.
 - **Confidence tests**: 03, 05, 30, 32, 38, 45 and 47 change the expected
   output of the confidence tests `math`, `out` or `texts`. The expected
   output each one gives is for the series up to it. Applied out of order,
@@ -61,6 +67,8 @@ The chains are:
 - 30, 31 ← 32 (Out.Real and LongReal).
 - 15 ← 17 (Files).
 - 28 ← 29 (Strings.StrToReal).
+- 42 ← 54 ← 55 (Math and MathL on denormal numbers).
+- 65 ← 66 (Texts.Scan).
 
 ## Reproducing the results
 
@@ -69,8 +77,11 @@ Build voc twice with `make all`, at `master` and with the series applied
 
 - `tools/runall.sh LABEL VOCDIR OUTDIR` compiles and runs every reproducer
   listed in `tools/manifest` (issue, size model, modules, standard input,
-  setup) and writes the transcripts. The issue texts use those labelled
-  `master` and `new`.
+  setup, modules compiled first, a command to run in place of the
+  program) and writes the transcripts. The issue texts use those labelled
+  `master` and `new`. Issue 58 does not show on Linux; its FreeBSD
+  transcripts, from voc built there at `master` and with the series, are
+  in `tools/issues.py`.
 - `tools/gen.py VOCCLONE OUTDIR` writes `issues/*.md` and this README from
   `tools/issues.py` (each issue's title and summary, and the table of
   dependencies), `tools/README.head.md`, the reproducers, the transcripts,
@@ -80,9 +91,11 @@ Build voc twice with `make all`, at `master` and with the series applied
 - `tools/each-commit.sh VOCCLONE` builds every commit of the series with
   `make all` and reports whether its confidence tests pass.
 - `tools/checks/run.sh VOCDIR` makes the counts quoted in patches 0032,
-  0047 and 0048: Out.LongReal's digits for 2000 random doubles, Math.sqrt
-  and MathL.sqrt for 3003 REALs and 3007 doubles, and sin, cos and tan for
-  407 arguments from 9100 to 4.2E307, compared with the C library's.
+  0047, 0048 and 0066: Out.LongReal's digits for 2000 random doubles,
+  Math.sqrt and MathL.sqrt for 3003 REALs and 3007 doubles, sin, cos and
+  tan for 407 arguments from 9100 to 4.2E307, compared with the C
+  library's, and Texts.Scan for 2000 REAL and 1000 LONGREAL numerals,
+  compared with the correctly rounded values.
   `tools/checks/literals.sh VOCDIR SRCDIR` makes those in patch 0002, for
   the real literals in voc's `src/`.
 

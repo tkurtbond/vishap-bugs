@@ -1,7 +1,7 @@
 From 7a5fb75f77c1edf6ecfa6c057672e047756e188b Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:36:38 -0400
-Subject: [PATCH 25/48] In.Int, LongInt and HugeInt: hexadecimal digits need
+Subject: [PATCH 25/67] In.Int, LongInt and HugeInt: hexadecimal digits need
  the H
 
 A digit A..F made HugeInt take the number as hexadecimal whether or not

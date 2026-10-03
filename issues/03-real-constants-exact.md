@@ -6,7 +6,11 @@ A real constant is written into the C file with 15 or 16 significant
 digits, so the C compiler often reads back a different value: a folded
 `1.0D0 / 3.0D0` is not equal to the same division done at run time. A very
 small constant can come out as 0 (MathL's `miny`, so `MathL.power(0.0D0,
-3.0D0)` is about 2.5D-5, not 0).
+3.0D0)` is about 2.5D-5, not 0). `Math`'s sin and tan, which reduce their
+argument by multiples of the constants `pi` and `piByTwo`, so of what is
+left of them in C, are hundreds of units in the last place off, and near
+a multiple of pi/2 up to a million: `Math.tan(1.5707964)` is 3.0E14, not
+-2.29E7.
 
 ## Reproducer
 

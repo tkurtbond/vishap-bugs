@@ -1,7 +1,7 @@
 From 16bffb2e156a87765923a95c2c8f7d146a2fb4cc Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:42:54 -0400
-Subject: [PATCH 32/48] Out.Real and LongReal: correctly rounded digits, from
+Subject: [PATCH 32/67] Out.Real and LongReal: correctly rounded digits, from
  C's printf
 
 Needs "Out.LongReal writes a subnormal number, not 0" and "Out.Real and

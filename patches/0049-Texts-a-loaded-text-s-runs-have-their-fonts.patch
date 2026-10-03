@@ -1,0 +1,36 @@
+From 917ac4a180dd80e0b408fff39e90b6ece71bec0e Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:46:10 -0400
+Subject: [PATCH 49/67] Texts: a loaded text's runs have their fonts
+
+Load0 read each run's font number and the font names, but the line that
+gave the run its font was commented out, so every run of a text loaded
+from an Oberon text file had fnt = NIL. Store and Merge compare
+u.fnt.name, so storing such a text again, with Texts.Close or
+Texts.Store, or inserting into it, stopped the program with a NIL access,
+and a Reader's fnt was NIL.
+
+Load0 now sets the run's font to the one the file names, as Store wrote
+it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index 53bbdf5a..8dd7469e 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -800,7 +800,7 @@
+       IF plen > 0 THEN NEW(p); p.file := f; p.org := pos; p.ascii := FALSE; un := p; un.len := plen
+       ELSE LoadElem(msg.r, pos - org, -plen, e); un := e; un.len := 1
+       END;
+-      (*un.fnt := fnts[fno];*) un.col := col; un.voff := voff;
++      un.fnt := fnts[fno]; un.col := col; un.voff := voff;
+       INC(pos, un.len); u.next := un; un.prev := u; u := un; Files.Read(msg.r, fno)
+     END;
+     u.next := T.head; T.head.prev := u; T.cache := T.head; T.corg := 0;
+-- 
+2.55.0
+

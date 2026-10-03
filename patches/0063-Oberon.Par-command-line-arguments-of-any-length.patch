@@ -1,0 +1,52 @@
+From e21cdb562cee1a837d9f5346955487d08c0b067b Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:54:27 -0400
+Subject: [PATCH 63/67] Oberon.Par: command-line arguments of any length
+
+PopulateParams copied each command-line argument into an ARRAY 256 OF
+CHAR before writing it into Oberon.Par.text, so an argument of 256
+characters or more was cut to 255: with an argument of 300 characters,
+Par.text was 256 characters long, not 301.
+
+PopulateParams now writes each argument straight from argv, stopping
+where WriteString stopped, at the first character below " ".
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Oberon.Mod | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/runtime/Oberon.Mod b/src/runtime/Oberon.Mod
+index c67dcf17..4194ebde 100644
+--- a/src/runtime/Oberon.Mod
++++ b/src/runtime/Oberon.Mod
+@@ -2,7 +2,7 @@
+ 
+ (* this version should not have dependency on graphics -- noch *)
+ 
+-  IMPORT Platform, Modules, Texts, Out;
++  IMPORT SYSTEM, Platform, Modules, Texts, Out;
+ 
+   TYPE
+     ParList* = POINTER TO ParRec;
+@@ -34,12 +34,14 @@
+ END Time;
+ 
+ PROCEDURE PopulateParams;
+-  VAR W: Texts.Writer; i: INTEGER; str: ARRAY 256 OF CHAR;
++  VAR W: Texts.Writer; i: INTEGER; arg: SYSTEM.ADDRESS; ch: CHAR;
+ BEGIN
+   Texts.OpenWriter(W);
+   i := 1; (* skip program name *)
+-  WHILE i < Modules.ArgCount DO
+-    Modules.GetArg(i, str); Texts.WriteString(W, str); Texts.Write(W, " ");
++  WHILE i < Modules.ArgCount DO  (* each argument whole, read from argv *)
++    SYSTEM.GET(Modules.ArgVector + i*SIZE(SYSTEM.ADDRESS), arg); SYSTEM.GET(arg, ch);
++    WHILE ch >= " " DO Texts.Write(W, ch); INC(arg); SYSTEM.GET(arg, ch) END;  (* as WriteString *)
++    Texts.Write(W, " ");
+     INC(i)
+   END;
+   Texts.Append(Par^.text, W.buf);
+-- 
+2.55.0
+

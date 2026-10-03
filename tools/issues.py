@@ -21,7 +21,11 @@ values."""),
 digits, so the C compiler often reads back a different value: a folded
 `1.0D0 / 3.0D0` is not equal to the same division done at run time. A very
 small constant can come out as 0 (MathL's `miny`, so `MathL.power(0.0D0,
-3.0D0)` is about 2.5D-5, not 0)."""),
+3.0D0)` is about 2.5D-5, not 0). `Math`'s sin and tan, which reduce their
+argument by multiples of the constants `pi` and `piByTwo`, so of what is
+left of them in C, are hundreds of units in the last place off, and near
+a multiple of pi/2 up to a million: `Math.tan(1.5707964)` is 3.0E14, not
+-2.29E7."""),
 
 4: ("REAL literals of 1.0E38 or more and LONGREAL literals of 1.0D308 or more are \"number too large\"",
 """`3.4E38` and `1.7D308` are within range (`MAX(REAL)` is about 3.40282E38,
@@ -213,7 +217,8 @@ commit 7f4b284a ("Correct set size in component pascal compatability mode",
 """`sincos` computes the cosine as `sqrt(1 - sin(x)^2)`, so for x in (pi/2,
 3pi/2) it has the wrong sign: `Math.sincos(2.0)` gives cos 0.416, where cos(2)
 is -0.416. `MathL.tan` is computed from `sincos`, so it has the wrong sign
-there too."""),
+there too, and near a pole it is far off: `MathL.tan` of the `LONGREAL`
+nearest pi/2 is 2.02E7, not 1.633E16."""),
 
 39: ("Math.succ and Math.pred do not give the neighbouring numbers",
 """For a negative number `succ` moves down and `pred` up (`Math.succ(-1.0)` is
@@ -267,17 +272,125 @@ the square root correctly rounded."""),
 an argument of 9099 or more, `Math.tan` above 6434, and `MathL.sin` and
 `MathL.cos` (and so `MathL.tan`) for one of 210828714 or more:
 `Math.sin(10000.0)` is 0, not -0.3056. Every finite real has a sine."""),
+49: ("Texts: storing a text loaded from a file stops with a NIL access",
+"""A text opened from an Oberon text file (one that `Texts.Close` or
+`Texts.Store` wrote) has no fonts: every run's `fnt` is NIL. Storing it
+again with `Texts.Close` or `Texts.Store`, or inserting into it where runs
+are merged, stops the program with a NIL access."""),
+50: ("Texts.Store writes CR LF of a plain text as two line ends",
+"""`Texts.Open` of a plain text file reads CR LF as one line end, but
+`Texts.Store` (and so `Texts.Close`) writes it as CR CR: a file with CR LF
+line ends, opened and closed, has twice as many lines when it is opened
+again."""),
+51: ("Texts.Save and Copy stop with a NIL access on an element that is not copied",
+"""`Texts.Save`, and `Texts.Copy` of a buffer, copy each element by sending
+it a `CopyMsg`. If the element's handler makes no copy, a NIL goes into the
+buffer and the program stops with a NIL access."""),
+52: ("Texts.Close traps on a file name of 60 characters or more",
+"""`Texts.Close` makes the backup file's name, the name followed by
+`.Bak`, in an `ARRAY 64 OF CHAR`: a name of 60 characters or more, which
+`Files` takes, stops the program with an index out of range."""),
+53: ("Texts.WriteInt of MIN(SYSTEM.INT64) ignores the width",
+"""`Texts.WriteInt(W, MIN(SYSTEM.INT64), n)` always writes
+` -9223372036854775808`, with one blank, whatever `n` is: too few blanks
+for a wide field, and one too many for `n` = 0."""),
+54: ("Math and MathL: fraction, ulp and scale are wrong for denormal numbers",
+"""`fraction`, `ulp` and `scale` take every number to be normal.
+`Math.fraction` of a denormal number is wrong, `Math.scale` gives the
+smallest normal number for any result below the normal range, and `ulp`
+of a denormal number is the smallest normal number or 0. The same holds
+for `MathL`."""),
+55: ("Math.exp and MathL.exp give 0 where the result is a denormal number",
+"""`Math.exp(x)` is 0, and sets `Math.err` to Underflow, for any `x` below
+about -88.7, though `exp(x)` is a denormal `REAL` down to about -103.3.
+`MathL.exp(x)` is 0 below about -709.8, though the result is a denormal
+`LONGREAL` down to about -744.4."""),
+56: ("Math and MathL: arcsinh and arccosh of a large argument are wrong",
+"""For an argument above about 9.2E18 (`REAL`) or 6.7E153 (`LONGREAL`),
+`arcsinh` and `arccosh` report HypInvTrigClipped and return the same
+value, ln(sqrt(MAX)), whatever the argument. Both functions are finite for
+every finite argument, and there they are ln(2x)."""),
+57: ("Strings.Cap runs off the end of an array with no 0X",
+"""`Strings.Cap(s)` looks for the 0X that ends `s` with no bound, so a
+string that fills its array traps with an index out of range (or, with
+index checks off, changes memory beyond the array)."""),
+58: ("Platform.MTimeAsClock (Files.GetDate) reads past its LONGINT under -O2",
+"""Under `-O2`, `Platform.MTimeAsClock`, which `Files.GetDate` calls,
+passes `localtime` the address of a 4-byte `LONGINT` as a `time_t *`, so
+`localtime` reads 4 bytes beyond it. On Linux they happened to be 0 and
+the date was right; on FreeBSD amd64 and OpenBSD i386 `localtime` returned
+NULL and `Files.GetDate` stopped the program with a NIL access."""),
+59: ("Platform.Write loses what a partial write leaves",
+"""`Platform.Write` makes one `write(2)` call and reports success if it
+does not fail, though `write` may write fewer bytes than asked, to a pipe
+or when a signal arrives. The rest is lost without an error. `Out`,
+`Files` and `Console` write through `Platform.Write`."""),
+60: ("Platform.Delay returns early when a signal arrives",
+"""`Platform.Delay(ms)` makes one `nanosleep` call, which returns early
+when a signal is caught, so the program sleeps less than `ms`."""),
+61: ("Platform.PID is wrong under -O2, and temporary file names can collide",
+"""`Platform.PID` is an `INTEGER`, 16 bits under `-O2`, so a process id
+above 32767 wraps. `Files` builds temporary file names from `PID`, and
+writes no digits for a negative one, so two programs in one directory can
+make the same temporary names."""),
+62: ("Modules.ThisMod and ThisCommand fail for long names",
+"""`Heap` keeps a module's name in 20 characters and a command's in 24,
+cutting longer ones, while `Modules.ThisMod` and `Modules.ThisCommand`
+compare the whole name: a module or a command with a long name is not
+found."""),
+63: ("Oberon.Par cuts command-line arguments to 255 characters",
+"""`Oberon` copies each command-line argument into an
+`ARRAY 256 OF CHAR` on its way to `Oberon.Par.text`, so an argument of
+256 characters or more is cut."""),
+64: ("Oberon.Log echoes text that is deleted or changed",
+"""The notifier that echoes text appended to `Oberon.Log` on standard
+output echoes on every change to the Log: after `Texts.Delete` it writes
+the text that follows the deleted part (or a 0X), and after
+`Texts.ChangeLooks` the changed text again."""),
+65: ("Texts.Scan traps on a number of 32 digits or more",
+"""`Texts.Scan` keeps a number's digits in an `ARRAY 32 OF CHAR` with no
+bound, so a number of 32 digits or more, its integer part and decimals
+together, stops the program with an index out of range: pi written to 36
+decimal places is enough."""),
+66: ("Texts.Scan does not read real numbers correctly rounded",
+"""`Texts.Scan` computes a real number's value digit by digit in floating
+point, so it is often a unit or more in the last place off: `1.06E7` is
+read as 10599999.0, and `0.3D0` is not the `LONGREAL` nearest 0.3. Of
+2000 random `REAL` numerals 636 are read wrong, and of 1000 `LONGREAL`
+ones 869."""),
+67: ("ethReals reads the wrong half of a LONGREAL, so ethStrings.RealToStr writes nonsense",
+"""`ethReals` keeps the offsets of a `LONGREAL`'s high and low 32 bits in
+the variables `H` and `L`, which nothing sets, so both are 0. On a
+little-endian machine `ExpoL`, `SetExpoL`, `RealL` and `IntL` then take
+the low half for the high one, and `ethStrings.RealToStr`, which uses
+them, writes nonsense: `RealToStr(12345.678D0, s)` gives
+`0.000000000000005D+042`, and `RealToStr(3.0D0, s)` gives `0`."""),
 }
 
 # Series numbers each patch needs applied first, for its code to apply or work.
 NEEDS = {
 3: [2], 4: [2], 5: [3], 17: [15], 29: [28], 32: [30, 31],
-40: [2, 4], 41: [40, 3],
+40: [2, 4], 41: [40, 3], 54: [42], 55: [54], 66: [65],
 }
 
 # Patches that change the same lines as an earlier one, without needing
 # what it does: applied alone (without the earlier one) they need
 # rebasing, which the standalone branches show.
 OVERLAPS = {
-3: [1], 14: [9], 20: [18],
+3: [1], 14: [9], 20: [18], 54: [48], 61: [15], 65: [46],
+}
+
+# Transcripts from another system, for an issue that does not show on
+# Linux: (system, transcript at master, transcript with the fix).
+ELSEWHERE = {
+58: ("FreeBSD 15.1-RELEASE amd64, clang 19.1.7, voc built there at the same commits",
+"""$ voc -O2 FileDate.Mod -m
+FileDate.Mod  Compiling FileDate.  Main program.  1405 chars.
+$ ./FileDate
+Terminated by Halt(-10). NIL access.
+(exit status 246)""",
+"""$ ./FileDate
+now                2026-10- 3 15:59
+file's date        2026-10- 3 15:59 (expected the same, to the minute)
+(exit status 0)"""),
 }

@@ -1,0 +1,44 @@
+From f0e68dbcffa4186847f31c1e881dfc448315b7e4 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:54:38 -0400
+Subject: [PATCH 64/67] Oberon.Log: echo only the text inserted
+
+The Log's notifier, which echoes text appended to the Log to standard
+output, echoed the range of every notification, whatever the operation:
+after Texts.Delete it wrote the characters that followed the deleted
+ones, now at its place (or a 0X, at the end of the text), and after
+Texts.ChangeLooks it wrote the changed text a second time.
+
+It now echoes the text only when the operation is Texts.insert.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Oberon.Mod | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/src/runtime/Oberon.Mod b/src/runtime/Oberon.Mod
+index 4194ebde..bba3c53f 100644
+--- a/src/runtime/Oberon.Mod
++++ b/src/runtime/Oberon.Mod
+@@ -55,11 +55,13 @@
+ PROCEDURE LogNotifier(Log: Texts.Text; op: INTEGER; beg, end: LONGINT);
+   VAR ch: CHAR;
+ BEGIN
+-  Texts.OpenReader(R, Log, beg);
+-  WHILE ~R.eot & (beg < end) DO
+-    Texts.Read(R, ch);
+-    IF ch = 0DX THEN Out.Ln ELSE Out.Char(ch) END;
+-    INC(beg)
++  IF op = Texts.insert THEN  (* not a deletion or a change of looks *)
++    Texts.OpenReader(R, Log, beg);
++    WHILE ~R.eot & (beg < end) DO
++      Texts.Read(R, ch);
++      IF ch = 0DX THEN Out.Ln ELSE Out.Char(ch) END;
++      INC(beg)
++    END
+   END
+ END LogNotifier;
+ 
+-- 
+2.55.0
+

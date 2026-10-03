@@ -1,0 +1,111 @@
+From 633aba0917e78dfac328644c2609c1599b753d68 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 16:03:15 -0400
+Subject: [PATCH 65/67] Texts.Scan: numbers of 32 digits or more
+
+Scan kept a number's digits in an ARRAY 32 OF CHAR with no bound, so a
+number of 32 digits or more, its integer part and decimals together,
+stopped the program with an index out of range:
+3.14159265358979323846264338327950288 did.
+
+Scan now keeps up to 256 digits, in an array of that many with INTEGER
+indices (they were SHORTINTs), and only counts those beyond. A real
+number's integer digits beyond them scale it by a power of ten, and its
+decimals beyond them are dropped; an integer with more digits than that,
+more than any integer type holds, is Inval. negE, which a real number
+without a scale factor read uninitialized, starts FALSE.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 30 ++++++++++++++++++++----------
+ 1 file changed, 20 insertions(+), 10 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index 0d299219..9194bb0a 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -398,11 +398,11 @@
+     x = 2^(e-1023) * 1.m   bit 0: sign, bits 1-11: e, bits 12-63: m *)
+ 
+   PROCEDURE Scan* (VAR S: Scanner);
+-    CONST maxD = 32;
++    CONST maxD = 256;
+     VAR ch, term: CHAR;
+       neg, negE, hex: BOOLEAN;
+-      i, j, h: SHORTINT;
+-      e: INTEGER; k: LONGINT;
++      i, j, h: INTEGER;
++      e, extra: INTEGER; k: LONGINT;
+       x, f: REAL; y, g: LONGREAL;
+       d: ARRAY maxD OF CHAR;
+ 
+@@ -430,18 +430,20 @@
+         OR ("A" > CAP(ch)) & (ch > "9")
+         OR ("0" > ch) & (ch # ".") & (ch # "/")  (* << *)
+         OR (i = 63);  (* << *)
+-      S.s[i] := 0X; S.len := i; S.class := 1
++      S.s[i] := 0X; S.len := SHORT(i); S.class := 1
+     ELSIF ch = 22X THEN (*literal string*)
+       Read(S, ch);
+       WHILE (ch # 22X) & (ch >= " ") & (i # 63) DO  (* << *)
+         S.s[i] := ch; INC(i); Read(S, ch)
+       END;
+-      S.s[i] := 0X; S.len := i+1; Read(S, ch); S.class := 2
++      S.s[i] := 0X; S.len := SHORT(i+1); Read(S, ch); S.class := 2
+     ELSE
+       IF ch = "-" THEN neg := TRUE; Read(S, ch) ELSE neg := FALSE END ;
+       IF ("0" <= ch) & (ch <= "9") THEN (*number*)
+-        hex := FALSE; j := 0;
+-        LOOP d[i] := ch; INC(i); Read(S, ch);
++        hex := FALSE; j := 0; extra := 0; negE := FALSE;
++        LOOP  (* digits beyond maxD are not kept, only counted *)
++          IF i < maxD THEN d[i] := ch; INC(i) ELSE INC(extra) END;
++          Read(S, ch);
+           IF ch < "0" THEN EXIT END;
+           IF "9" < ch THEN
+             IF ("A" <= ch) & (ch <= "F") THEN hex := TRUE; ch := CHR(ORD(ch)-7)
+@@ -456,15 +458,21 @@
+           k := ORD(d[j]) - 30H; INC(j);
+           IF (i-j = 7) & (k >= 8) THEN DEC(k, 16) END ;
+           WHILE j < i DO k := k*10H + (ORD(d[j]) - 30H); INC(j) END ;
+-          IF neg THEN S.i := -k ELSE S.i := k END
++          IF neg THEN S.i := -k ELSE S.i := k END;
++          IF extra > 0 THEN S.class := Inval END  (* more digits than any integer has *)
+         ELSIF ch = "." THEN (*read real*)
+           Read(S, ch); h := i;
+-          WHILE ("0" <= ch) & (ch <= "9") DO d[i] := ch; INC(i); Read(S, ch) END ;
++          WHILE ("0" <= ch) & (ch <= "9") DO
++            IF i < maxD THEN d[i] := ch; INC(i) END;  (* decimals beyond maxD digits are dropped *)
++            Read(S, ch)
++          END ;
+           IF ch = "D" THEN
+             e := 0; y := 0; g := 1;
+             REPEAT y := y*10 + (ORD(d[j]) - 30H); INC(j) UNTIL j = h;
+             WHILE j < i DO g := g/10; y := (ORD(d[j]) - 30H)*g + y; INC(j) END ;
+             ReadScaleFactor;
++            IF negE THEN e := extra - e ELSE e := e + extra END;  (* integer digits not kept: scale by them *)
++            negE := e < 0; e := ABS(e);
+             (* beyond 10^308 in two steps: the number may still be in range;
+                if it is not, it becomes 0 or an infinity *)
+             IF negE THEN
+@@ -483,6 +491,8 @@
+             REPEAT x := x*10 + (ORD(d[j]) - 30H); INC(j) UNTIL j = h;
+             WHILE j < i DO f := f/10; x := (ORD(d[j])-30H)*f + x; INC(j) END;
+             IF ch = "E" THEN ReadScaleFactor END ;
++            IF negE THEN e := extra - e ELSE e := e + extra END;  (* integer digits not kept: scale by them *)
++            negE := e < 0; e := ABS(e);
+             (* beyond 10^38 in two steps, as for LONGREAL above *)
+             IF negE THEN
+               IF e <= 38 THEN x := x / Reals.Ten(e)
+@@ -502,7 +512,7 @@
+           S.class := 3; k := 0;
+           REPEAT k := k*10 + (ORD(d[j]) - 30H); INC(j) UNTIL j = i;
+           IF neg THEN S.i := -k ELSE S.i := k END;
+-          IF hex THEN S.class := 0 ELSE S.class := 3 END
++          IF hex OR (extra > 0) THEN S.class := Inval ELSE S.class := Int END  (* extra: more digits than any integer has *)
+         END
+       ELSE S.class := 6;
+         IF neg THEN S.c := "-" ELSE S.c := ch; Read(S, ch) END
+-- 
+2.55.0
+

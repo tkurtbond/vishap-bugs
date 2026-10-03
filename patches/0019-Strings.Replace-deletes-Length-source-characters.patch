@@ -1,7 +1,7 @@
 From 421f9b7c42a1c7de9323a88e0904dcdba3cd4059 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:29:30 -0400
-Subject: [PATCH 19/48] Strings.Replace deletes Length(source) characters
+Subject: [PATCH 19/67] Strings.Replace deletes Length(source) characters
 
 It deleted pos + Length(source), so Replace("XY", 3, s) of abcdefgh gave
 abcXY. Oakwood: "Replace(src, pos, dst) has the same effect as

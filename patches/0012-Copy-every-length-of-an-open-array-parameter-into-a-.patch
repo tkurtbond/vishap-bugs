@@ -1,7 +1,7 @@
 From c0a9b602bbdb29155ef9b94eb8ca2acc8239cc7e Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:20:10 -0400
-Subject: [PATCH 12/48] Copy every length of an open array parameter into a
+Subject: [PATCH 12/67] Copy every length of an open array parameter into a
  nested procedure's frame
 
 OPC.EnterProc copies an open array parameter used by a nested procedure

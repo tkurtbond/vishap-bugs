@@ -1,7 +1,7 @@
 From 87d9a6a79b31304b5025c3ee611a53d374f9aa92 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:09:57 -0400
-Subject: [PATCH 01/48] Take ENTIER of constants >= 2^31 in 64 bits in the
+Subject: [PATCH 01/67] Take ENTIER of constants >= 2^31 in 64 bits in the
  compiler
 
 The compiler is built with the -O2 sizes, so its own ENTIER yields a 32

@@ -1,0 +1,103 @@
+From 350088d617a6506dd753d8efbe8daf635a2b315d Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:53:05 -0400
+Subject: [PATCH 61/67] Platform.PID: a LONGINT, which holds any process id
+
+PID was an INTEGER, which under -O2 has 16 bits, while process ids run
+to 4194304 on Linux and 99999 on FreeBSD and OpenBSD: a process with id
+498041 had PID -26247. Files.GetTempName writes PID's digits into a
+temporary file's name and wrote none for a negative PID, so two
+programs whose ids differed by a multiple of 65536, or both had a
+negative PID, made the same temporary names in a directory they shared.
+
+PID is now a LONGINT (on Unix and on Windows), as is
+oocFilesHost.ProcessId, which returns it. Files.GetTempName reads it into
+a LONGINT and checks that the name has room for its 10 digits.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/library/ooc/oocFilesHost.Mod | 2 +-
+ src/runtime/Files.Mod            | 4 ++--
+ src/runtime/Platformunix.Mod     | 4 ++--
+ src/runtime/Platformwindows.Mod  | 4 ++--
+ 4 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/src/library/ooc/oocFilesHost.Mod b/src/library/ooc/oocFilesHost.Mod
+index 3f601192..6bc2711a 100644
+--- a/src/library/ooc/oocFilesHost.Mod
++++ b/src/library/ooc/oocFilesHost.Mod
+@@ -120,7 +120,7 @@
+   COPY(Platform.CWD, path)
+ END CurrentDirectory;
+ 
+-PROCEDURE ProcessId* (): INTEGER;
++PROCEDURE ProcessId* (): LONGINT;
+ BEGIN
+   RETURN Platform.PID
+ END ProcessId;
+diff --git a/src/runtime/Files.Mod b/src/runtime/Files.Mod
+index 01b7de5d..f283044b 100644
+--- a/src/runtime/Files.Mod
++++ b/src/runtime/Files.Mod
+@@ -107,12 +107,12 @@
+   END MakeAbsolute;
+ 
+   PROCEDURE GetTempName(finalName: ARRAY OF CHAR; VAR name: ARRAY OF CHAR);
+-  VAR i, n: INTEGER;
++  VAR i: INTEGER; n: LONGINT;
+   BEGIN
+     IF finalName[0]='/' THEN COPY(finalName, name) ELSE MakeFileName(Platform.CWD, finalName, name) END;
+     i := Strings.Length(name)-1;
+     WHILE (i > 0) & (name[i] # '/') DO DEC(i) END;
+-    IF i+16 >= LEN(name) THEN Err("File name too long", NIL, 0) END;
++    IF i+22 >= LEN(name) THEN Err("File name too long", NIL, 0) END;  (* ".tmp.", 5 digits, ".", 10 digits, 0X *)
+     INC(tempno); n := tempno;
+     name[i+1] := "."; name[i+2] := "t"; name[i+3] := "m"; name[i+4] := "p"; name[i+5] := "."; INC(i, 6);
+     WHILE n > 0 DO name[i] := CHR(n MOD 10 + ORD("0")); n := n DIV 10; INC(i) END;
+diff --git a/src/runtime/Platformunix.Mod b/src/runtime/Platformunix.Mod
+index 1dd1ee73..fd658102 100644
+--- a/src/runtime/Platformunix.Mod
++++ b/src/runtime/Platformunix.Mod
+@@ -28,7 +28,7 @@
+ 
+ VAR
+   LittleEndian-:   BOOLEAN;
+-  PID-:            INTEGER;    (* Note: Must be updated by Fork implementation *)
++  PID-:            LONGINT;    (* Note: Must be updated by Fork implementation *)
+   CWD-:            ARRAY 256 OF CHAR;
+   TimeStart:       LONGINT;
+ 
+@@ -583,7 +583,7 @@
+  BEGIN i := 1; SYSTEM.GET(SYSTEM.ADR(i), LittleEndian); END TestLittleEndian;
+ 
+ 
+-PROCEDURE -getpid(): INTEGER   "(INTEGER)getpid()";
++PROCEDURE -getpid(): LONGINT   "(LONGINT)getpid()";
+ 
+ BEGIN
+   TestLittleEndian;
+diff --git a/src/runtime/Platformwindows.Mod b/src/runtime/Platformwindows.Mod
+index 5ae1097d..315bc4cf 100644
+--- a/src/runtime/Platformwindows.Mod
++++ b/src/runtime/Platformwindows.Mod
+@@ -23,7 +23,7 @@
+ 
+ VAR
+   LittleEndian-:    BOOLEAN;
+-  PID-:             INTEGER;    (* Note: Must be updated by Fork implementation *)
++  PID-:             LONGINT;    (* Note: Must be updated by Fork implementation *)
+   CWD-:             ARRAY 4096 OF CHAR;
+   TimeStart:        LONGINT;
+ 
+@@ -542,7 +542,7 @@
+ PROCEDURE -getstdinhandle():  FileHandle "(ADDRESS)GetStdHandle(STD_INPUT_HANDLE)";
+ PROCEDURE -getstdouthandle(): FileHandle "(ADDRESS)GetStdHandle(STD_OUTPUT_HANDLE)";
+ PROCEDURE -getstderrhandle(): FileHandle "(ADDRESS)GetStdHandle(STD_ERROR_HANDLE)";
+-PROCEDURE -getpid():          INTEGER    "(INTEGER)GetCurrentProcessId()";
++PROCEDURE -getpid():          LONGINT    "(LONGINT)GetCurrentProcessId()";
+ 
+ BEGIN
+   TestLittleEndian;
+-- 
+2.55.0
+

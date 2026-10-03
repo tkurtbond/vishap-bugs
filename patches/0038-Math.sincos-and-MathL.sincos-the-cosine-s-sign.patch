@@ -1,7 +1,7 @@
 From 8863cfd2804e387ff253f0535233255defd4d640 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 14:16:57 -0400
-Subject: [PATCH 38/48] Math.sincos and MathL.sincos: the cosine's sign
+Subject: [PATCH 38/67] Math.sincos and MathL.sincos: the cosine's sign
 
 sincos gave the cosine as sqrt(1 - sin(x)^2), which is never negative,
 so for x in (pi/2, 3pi/2) (mod 2pi) it had the wrong sign:

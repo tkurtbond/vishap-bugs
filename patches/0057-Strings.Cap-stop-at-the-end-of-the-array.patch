@@ -1,0 +1,35 @@
+From 1a7ba5c067a9276affab39503a71a53be50765e7 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:51:31 -0400
+Subject: [PATCH 57/67] Strings.Cap: stop at the end of the array
+
+Cap looked for the 0X that ends the string with no bound, so a string
+that fills its array, with no 0X, made it run off the end: an index out
+of range with index checks, and memory beyond the array changed without
+them. Strings.Length, which the other procedures use, stops at the end
+of the array.
+
+Cap now stops at the 0X or at the end of the array, whichever comes
+first.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Strings.Mod | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/runtime/Strings.Mod b/src/runtime/Strings.Mod
+index 907d0c9d..56451650 100644
+--- a/src/runtime/Strings.Mod
++++ b/src/runtime/Strings.Mod
+@@ -124,7 +124,7 @@
+   VAR i: INTEGER;
+ BEGIN
+   i := 0;
+-  WHILE s[i] # 0X DO
++  WHILE (i < LEN(s)) & (s[i] # 0X) DO
+     IF ("a" <= s[i]) & (s[i] <= "z") THEN s[i] := CAP(s[i]) END ;
+     INC(i)
+   END
+-- 
+2.55.0
+

@@ -7,7 +7,7 @@
 #   git -C VOCCLONE format-patch -o patches master..series
 import os, re, subprocess, sys
 sys.path.insert(0, os.path.dirname(__file__))
-from issues import ISSUES, NEEDS, OVERLAPS
+from issues import ISSUES, NEEDS, OVERLAPS, ELSEWHERE
 
 T = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.dirname(T)
@@ -20,15 +20,16 @@ def git(*a):
                           capture_output=True, text=True).stdout
 
 commits = git('rev-list', '--reverse', 'master..series').split()
-assert len(commits) == 48, len(commits)
+N = len(commits)
+assert N == len(ISSUES), (N, len(ISSUES))
 
 manifest = {}
 for line in open(T + '/manifest'):
-    slug, model, files, inp, setup = line.rstrip('\n').split('|')
-    manifest[int(slug[:2])] = (slug, model, files.split(), inp, setup)
+    slug, model, files, inp, setup, pre, run = (line.rstrip('\n').split('|', 6) + ['', ''])[:7]
+    manifest[int(slug[:2])] = (slug, model, files.split(), inp, setup, pre.split(), run)
 
 slugs = {}
-for n in range(1, 49):
+for n in range(1, N + 1):
     slugs[n] = manifest[n][0] if n in manifest else '37-features-set-size'
 
 def subject(n):
@@ -71,25 +72,30 @@ def issue(n):
     note = AI_NOTE if n in manifest else AI_NOTE.split(' The reproducers')[0] + '*'
     out = ['# ' + title, '', note, '', summary.strip(), '']
     if n in manifest:
-        slug, model, files, inp, setup = manifest[n]
+        slug, model, files, inp, setup, pre, run = manifest[n]
         out += ['## Reproducer', '']
         if setup:
             out += ['Run in a directory with a subdirectory `sub` (`%s`).' % setup, '']
-        for m in files:
+        for m in pre + files:
             src = open('%s/reproducers/%s/%s.Mod' % (OUT, slug, m)).read().rstrip('\n')
             out += ['`%s.Mod`:' % m, '', '```oberon', src, '```', '']
         out += ['With voc at `master`:', '']
         for m in files:
             out += ['```', transcript('master', slug, m), '```', '']
+        if n in ELSEWHERE:
+            out += ['On %s:' % ELSEWHERE[n][0], '', '```', ELSEWHERE[n][1], '```', '']
     if n in manifest:
         out += ['## Cause and fix', '', body(n), '']
     else:
         out += ['## Fix', '']
     if n in manifest:
-        slug, model, files, inp, setup = manifest[n]
+        slug, model, files, inp, setup, pre, run = manifest[n]
         out += ['With the fix:', '']
         for m in files:
             out += ['```', transcript('new', slug, m, run_only=True), '```', '']
+        if n in ELSEWHERE:
+            out += ['On FreeBSD, with the fix:' if 'FreeBSD' in ELSEWHERE[n][0] else 'There, with the fix:',
+                    '', '```', ELSEWHERE[n][2], '```', '']
     if os.path.isdir('%s/notes/%s' % (OUT, slugs[n])):
         out += ['A longer account, with more reproducers, is in `notes/%s/README.md`.' % slugs[n], '']
     out += ['The fix is `patches/%s`, a `git format-patch` of one commit.' % patchname(n)]
@@ -106,7 +112,7 @@ def issue(n):
 
 def index():
     out = ['| # | Issue | Patch | Needs |', '|---|-------|-------|-------|']
-    for n in range(1, 49):
+    for n in range(1, N + 1):
         needs = ', '.join('%02d' % k for k in NEEDS.get(n, []))
         if n in OVERLAPS:
             needs += (' ' if needs else '') + '(after %s)' % ', '.join('%02d' % k for k in OVERLAPS[n])
@@ -115,7 +121,7 @@ def index():
     return '\n'.join(out) + '\n'
 
 os.makedirs(OUT + '/issues', exist_ok=True)
-for n in range(1, 49):
+for n in range(1, N + 1):
     open('%s/issues/%s.md' % (OUT, slugs[n]), 'w').write(issue(n))
 open(OUT + '/README.md', 'w').write(open(T + '/README.head.md').read() + index())
 print('wrote', OUT + '/issues and README.md')

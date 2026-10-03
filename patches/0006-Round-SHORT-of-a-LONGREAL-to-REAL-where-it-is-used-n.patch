@@ -1,7 +1,7 @@
 From 4055dc4d98fcd1c36a0b490273975632680288e1 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:13:55 -0400
-Subject: [PATCH 06/48] Round SHORT of a LONGREAL to REAL where it is used, not
+Subject: [PATCH 06/67] Round SHORT of a LONGREAL to REAL where it is used, not
  only where stored
 
 OPV.Convert wrote no cast for a LONGREAL to REAL conversion, relying on

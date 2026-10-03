@@ -1,0 +1,52 @@
+From 4e2c130361506796c6f9a1451588c2dc430dea84 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:53:58 -0400
+Subject: [PATCH 62/67] Heap and Modules: module and command names of any
+ length
+
+Heap kept a module's name in an ARRAY 20 OF CHAR and a command's in an
+ARRAY 24 OF CHAR, and REGMOD and REGCMD cut longer names to fit, while
+Modules.ThisMod and ThisCommand compare the whole name asked for: a
+module named AModuleWithAVeryLongName (24 characters) was "not found",
+and so was a command of 24 characters or more.
+
+Both arrays now have 256 characters, OPS.MaxIdLen, so any identifier
+voc reads fits; Modules.ModNameLen follows.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Heap.Mod    | 4 ++--
+ src/runtime/Modules.Mod | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/runtime/Heap.Mod b/src/runtime/Heap.Mod
+index b2f6d8ad..f8bea52e 100644
+--- a/src/runtime/Heap.Mod
++++ b/src/runtime/Heap.Mod
+@@ -4,8 +4,8 @@
+                           before any other modules are initialized. *)
+ 
+   CONST
+-    ModNameLen    = 20;
+-    CmdNameLen    = 24;
++    ModNameLen    = 256;  (* OPS.MaxIdLen: any identifier voc reads *)
++    CmdNameLen    = 256;
+     SZA           = SIZE(S.ADDRESS);  (* Size of address *)
+     Unit          = 4*SZA;            (* Smallest possible heap block *)
+     nofLists      = 9;                (* Number of freelist entries excluding sentinel *)
+diff --git a/src/runtime/Modules.Mod b/src/runtime/Modules.Mod
+index c0ce21cf..652418e2 100644
+--- a/src/runtime/Modules.Mod
++++ b/src/runtime/Modules.Mod
+@@ -6,7 +6,7 @@
+   IMPORT SYSTEM, Platform, Heap; (* Note, must import Platform before Heap *)
+ 
+   CONST
+-    ModNameLen* = 20;
++    ModNameLen* = 256;
+ 
+   TYPE
+     ModuleName* = Heap.ModuleName;
+-- 
+2.55.0
+

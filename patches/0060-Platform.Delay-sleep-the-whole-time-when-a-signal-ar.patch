@@ -1,0 +1,35 @@
+From 3a03ed86107bf55d75d1a76e439932162c1236c5 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 15:52:28 -0400
+Subject: [PATCH 60/67] Platform.Delay: sleep the whole time when a signal
+ arrives
+
+Delay made one nanosleep call, which returns early, with EINTR, when a
+signal is caught: Platform.Delay(3000) returned after 1 s when a SIGALRM
+arrived then. nanosleep reports the time left, and Delay dropped it.
+
+Delay now calls nanosleep again with the time left until it has slept
+the whole time.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Platformunix.Mod | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/runtime/Platformunix.Mod b/src/runtime/Platformunix.Mod
+index 7d58ed40..1dd1ee73 100644
+--- a/src/runtime/Platformunix.Mod
++++ b/src/runtime/Platformunix.Mod
+@@ -206,7 +206,8 @@
+ END Time;
+ 
+ 
+-PROCEDURE -nanosleep(s: LONGINT; ns: LONGINT) "struct timespec req, rem; req.tv_sec = s; req.tv_nsec = ns; nanosleep(&req, &rem)";
++PROCEDURE -nanosleep(s: LONGINT; ns: LONGINT)
++"struct timespec req, rem; req.tv_sec = s; req.tv_nsec = ns; while (nanosleep(&req, &rem) < 0 && errno == EINTR) req = rem";
+ 
+ PROCEDURE Delay*(ms: LONGINT);
+ VAR s, ns: LONGINT;
+-- 
+2.55.0
+

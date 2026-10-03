@@ -5,7 +5,8 @@
 `sincos` computes the cosine as `sqrt(1 - sin(x)^2)`, so for x in (pi/2,
 3pi/2) it has the wrong sign: `Math.sincos(2.0)` gives cos 0.416, where cos(2)
 is -0.416. `MathL.tan` is computed from `sincos`, so it has the wrong sign
-there too.
+there too, and near a pole it is far off: `MathL.tan` of the `LONGREAL`
+nearest pi/2 is 2.02E7, not 1.633E16.
 
 ## Reproducer
 

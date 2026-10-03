@@ -1,7 +1,7 @@
 From 704fec0f7a0d1cdcbecde3c04f6d03df0c47f035 Mon Sep 17 00:00:00 2001
 From: "T. Kurt Bond" <tkurtbond@gmail.com>
 Date: Sat, 3 Oct 2026 13:37:40 -0400
-Subject: [PATCH 27/48] Implement In.Name
+Subject: [PATCH 27/67] Implement In.Name
 
 It stopped the program with HALT(99), "Not implemented". It now reads
 the characters up to the next blank or control character, Oakwood's
