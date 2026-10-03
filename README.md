@@ -23,6 +23,7 @@ Nothing here has been submitted to voc's repository.
   than a comment in its source says, without that being a bug: wrong
   claims (in comments or elsewhere) and design choices, each with what
   was found. Nothing there has a patch.
+- `priority.md`: the 67 issues ranked by severity, most severe first.
 - `notes/NN-name/`: longer accounts of two of the bugs, 13 and 14.
 - `tools/`: what produced and checked all of the above, described in
   "Reproducing the results" below.
