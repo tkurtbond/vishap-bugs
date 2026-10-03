@@ -1,0 +1,58 @@
+From 1d17744128925215c0e5a833918b26cda4aba72c Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:21:39 -0400
+Subject: [PATCH 42/48] Math.exponent and MathL.exponent of a denormal number
+
+exponent read the biased exponent field and subtracted the bias, but a
+denormal's field is 0 whatever its value, so every denormal had the
+exponent -127 (MathL: -1023): Math.exponent of 2^-149 was -127, not
+-149. A denormal is now first scaled into the normal range by a power of
+two (2^25; MathL 2^60), which is exact, and the power subtracted again.
+The result is below expoMin, as it must be for x = fraction(x) *
+2^exponent(x) to hold. (fraction and scale still assume a normal
+number.)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Math.Mod  | 7 ++++++-
+ src/runtime/MathL.Mod | 3 +++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/runtime/Math.Mod b/src/runtime/Math.Mod
+index 524228c9..e72dd6dd 100644
+--- a/src/runtime/Math.Mod
++++ b/src/runtime/Math.Mod
+@@ -163,10 +163,15 @@
+    that lies between `expoMin' and `expoMax'.  An exception shall occur
+    and may be raised if `x' is equal to 0.0.
+  *)
++  VAR e: INTEGER;
+ BEGIN
+   IF x = ZERO THEN RETURN 0 (* NOTE: x=0.0 should raise exception *)
+   ELSE
+-    RETURN SHORT(SYSTEM.LSH(SYSTEM.VAL(SYSTEM.INT32, x), -23) MOD 256) - 127
++    e := SHORT(SYSTEM.LSH(SYSTEM.VAL(SYSTEM.INT32, x), -23) MOD 256);
++    IF e = 0 THEN (* a denormal: scaled by 2^25, exactly, it is normal *)
++      RETURN exponent(x * 33554432.0) - 25
++    END;
++    RETURN e - 127
+   END
+ END exponent;
+ 
+diff --git a/src/runtime/MathL.Mod b/src/runtime/MathL.Mod
+index 74d1f4c0..6c8ed53b 100644
+--- a/src/runtime/MathL.Mod
++++ b/src/runtime/MathL.Mod
+@@ -155,6 +155,9 @@
+     ELSE
+       SYSTEM.GET(SYSTEM.ADR(i), r)
+     END;
++    IF r = 0 THEN (* a denormal: scaled by 2^60, exactly, it is normal *)
++      RETURN exponent(x * 1073741824.0D0 * 1073741824.0D0) - 60
++    END;
+     RETURN r - 1023
+   END
+ END exponent;
+-- 
+2.55.0
+

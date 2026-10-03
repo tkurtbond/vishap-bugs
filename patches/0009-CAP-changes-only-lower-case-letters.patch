@@ -1,0 +1,38 @@
+From 92d2f1ce84a6e4090853d86a07ac455f7bad4ea1 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:17:04 -0400
+Subject: [PATCH 09/48] CAP changes only lower-case letters
+
+__CAP cleared bit 5 (ch & 0x5F), so CAP("7") was 17X, CAP("{") "[",
+CAP("`") "@", and CAP of 0E9X (Latin-1 e acute) "I". The compiler folds
+a constant CAP with its own __CAP, so constants were wrong too. Now a
+lower-case letter a..z becomes upper case and any other character is
+left as it is.
+
+The scanner's identifier test uses CAP; with the old __CAP it took the
+bytes 0C1X..0DAX and 0E1X..0FAX as letters, which it now does not.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/SYSTEM.h | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/runtime/SYSTEM.h b/src/runtime/SYSTEM.h
+index 39d594ed..40459a37 100644
+--- a/src/runtime/SYSTEM.h
++++ b/src/runtime/SYSTEM.h
+@@ -214,7 +214,10 @@ static inline INT64 SYSTEM_ABS32(INT32 i) {return i >= 0 ? i : -i;}
+ static inline double SYSTEM_ABSD(double i) {return i >= 0.0 ? i : -i;}
+ #define __ABSFD(x) SYSTEM_ABSD(x)
+ 
+-#define __CAP(ch)       ((CHAR)((ch)&0x5f))
++// CAP changes a lower-case letter to upper case and leaves any other
++// character as it is (clearing bit 5 changed "7" to 17X and "{" to "[").
++static inline CHAR SYSTEM_CAP(CHAR ch) {return (ch >= 'a' && ch <= 'z') ? (CHAR)(ch - 32) : ch;}
++#define __CAP(ch)       SYSTEM_CAP(ch)
+ #define __ODD(x)        ((x)&1)
+ 
+ #define __IN(x, s, size)     (((unsigned int)(x))<size && ((((UINT##size)(s))>>(x))&1))
+-- 
+2.55.0
+

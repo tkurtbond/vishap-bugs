@@ -1,0 +1,29 @@
+From 8fb48900c55a10952ebd0860339f97e5f91e94c7 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:57:28 -0400
+Subject: [PATCH 34/48] VT100.DSR sends its argument
+
+DSR(n) sent ESC[6n whatever n was, so DSR(5), the device status
+report, asked for the cursor position instead. It now sends ESC[<n>n.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/VT100.Mod | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/runtime/VT100.Mod b/src/runtime/VT100.Mod
+index 18c11a72..358068c8 100644
+--- a/src/runtime/VT100.Mod
++++ b/src/runtime/VT100.Mod
+@@ -297,7 +297,7 @@
+ 
+    PROCEDURE DSR*(n : INTEGER);
+    BEGIN
+-         EscSeq(6, 'n');
++         EscSeq(n, 'n');
+    END DSR;
+ 
+ (* Save Cursor Position *)
+-- 
+2.55.0
+

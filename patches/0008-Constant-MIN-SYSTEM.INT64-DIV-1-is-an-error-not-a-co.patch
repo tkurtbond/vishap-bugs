@@ -1,0 +1,36 @@
+From c628647f6ad54d060d80ab50fde14dfd14eac5e4 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:16:03 -0400
+Subject: [PATCH 08/48] Constant MIN(SYSTEM.INT64) DIV (-1) is an error, not a
+ compiler crash
+
+OPB.ConstOp divided without checking for the one quotient that does not
+fit, and the compiler died of SIGFPE (C's division of the minimum by -1
+traps on x86). It is now err 203, number too large.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPB.Mod | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/src/compiler/OPB.Mod b/src/compiler/OPB.Mod
+index 565cd60b..7c8e59aa 100644
+--- a/src/compiler/OPB.Mod
++++ b/src/compiler/OPB.Mod
+@@ -533,9 +533,10 @@
+                 ELSIF f # OPT.Undef THEN err(102)
+                 END
+     |OPS.div:   IF f = OPT.Int THEN
+-                  IF yval^.intval # 0 THEN
+-                    xval^.intval := xval^.intval DIV yval^.intval; SetIntType(x)
+-                  ELSE err(205)
++                  IF yval^.intval = 0 THEN err(205)
++                  ELSIF (yval^.intval = -1) & (xval^.intval = MIN(SYSTEM.INT64)) THEN
++                    err(203) (* -MIN(SYSTEM.INT64) does not fit; C's division traps *)
++                  ELSE xval^.intval := xval^.intval DIV yval^.intval; SetIntType(x)
+                   END
+                 ELSIF f # OPT.Undef THEN err(103)
+                 END
+-- 
+2.55.0
+

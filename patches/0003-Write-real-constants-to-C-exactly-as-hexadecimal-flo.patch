@@ -1,0 +1,276 @@
+From d71458b9e50ecd444024d1cc2bd5f052818c911d Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:11:53 -0400
+Subject: [PATCH 03/48] Write real constants to C exactly, as hexadecimal
+ floating constants
+
+Needs "Round real literals correctly" first: without it, the scanner's
+rounding errors, which the old output often hid, show.
+
+OPM.WriteReal wrote a non-integral constant with Texts.WriteLongReal, 16
+or 15 significant digits, so the C compiler read back a different value
+for many: a folded 1.0D0 / 3.0D0 was not equal to the same division done
+at run time. It now writes a C99 hexadecimal constant, [-]0x1.hhh..p+e,
+which is exact. Microsoft C, which may not read them, keeps the decimal.
+
+A small constant could come out as 0: MathL's miny (1/MAX(LONGREAL)) was
+written as 0, so MathL.power(0.0D0, 3.0D0), which tests ABS(base) < miny,
+went on with a zero base and returned about 2.5D-5, not 0; it is now 0.
+
+The confidence tests' expected output changes with it: out's
+1.2345678987654321D3 is now the double nearest (40934A45874103E1, was
+...D8), and math's MathL results with it (sin(pi) is 1.22464023514027D-16,
+cos(pi/2) 6.12320117570134D-17, arctan(1) 7.85398163397448D-1).
+
+Math reduces the argument of sin, cos and tan as LONG(x) - LONG(xn) * pi,
+meaning pi in LONGREAL precision, but pi and piByTwo are REAL constants:
+the C used to carry them as decimal numerals with more digits than a
+REAL has, and now carries the REAL values exactly, which made
+Math.sin(3.14159274), the REAL nearest pi, -0.0 instead of -8.74228E-08
+and Math.tan of the REAL nearest pi/2 -Infinity. The reductions now use
+LONGREAL constants piL and piByTwoL, and give those values correctly.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPM.Mod              | 25 ++++++++++-
+ src/runtime/Math.Mod              |  7 ++-
+ src/test/confidence/math/expected | 74 +++++++++++++++----------------
+ src/test/confidence/out/expected  |  8 ++--
+ 4 files changed, 69 insertions(+), 45 deletions(-)
+
+diff --git a/src/compiler/OPM.Mod b/src/compiler/OPM.Mod
+index d3f4ddd6..5d00c3cb 100755
+--- a/src/compiler/OPM.Mod
++++ b/src/compiler/OPM.Mod
+@@ -766,14 +766,35 @@
+     RETURN (high * 65536 + middle) * 65536 + ENTIER(r - middle * 65536.0D0)
+   END Entier64;
+ 
++  (* Writes r as a C99 hexadecimal floating constant, which is exact:
++     [-]0x1.hhhhhhhhhhhhhp[+-]d, or 0x0.hhhhhhhhhhhhhp-1022 below 2^-1022. *)
++  PROCEDURE WriteHexReal (r: LONGREAL);
++    CONST two52 = 10000000000000H;
++    VAR bits, fraction, exponent, digit: SYSTEM.INT64; k: INTEGER;
++  BEGIN
++    SYSTEM.GET(SYSTEM.ADR(r), bits);
++    IF bits < 0 THEN Write("-") END;
++    fraction := bits MOD two52; exponent := bits DIV two52 MOD 2048;
++    IF exponent = 0 THEN WriteString("0x0."); exponent := -1022
++    ELSE WriteString("0x1."); exponent := exponent - 1023
++    END;
++    FOR k := 12 TO 0 BY -1 DO
++      digit := SYSTEM.LSH(fraction, -4*k) MOD 16;
++      IF digit < 10 THEN Write(CHR(ORD("0") + digit)) ELSE Write(CHR(ORD("a") - 10 + digit)) END
++    END;
++    Write("p"); IF exponent >= 0 THEN Write("+") END; WriteInt(exponent)
++  END WriteHexReal;
++
+   PROCEDURE WriteReal* (r: LONGREAL; suffx: CHAR);
+     VAR W: Texts.Writer; T: Texts.Text; R: Texts.Reader; s: ARRAY 32 OF CHAR; ch: CHAR; i: INTEGER;
+   BEGIN
+-(*should be improved *)
+     IF (r < SignedMaximum(LongintSize)) & (r > SignedMinimum(LongintSize)) & (r = Entier64(r)) THEN
+       IF suffx = "f" THEN WriteString("(REAL)") ELSE WriteString("(LONGREAL)") END ;
+       WriteInt(Entier64(r))
+-    ELSE
++    ELSIF (Configuration.compiler # "msc") & (Configuration.compiler # "MSC") & (r - r = 0) THEN
++      (* Finite, and not for Microsoft C, which may not have hexadecimal constants. *)
++      WriteHexReal(r)
++    ELSE (* Decimal: 16 or 15 significant digits, which may not give r back. *)
+       Texts.OpenWriter(W);
+       IF suffx = "f" THEN Texts.WriteLongReal(W, r, 16) ELSE Texts.WriteLongReal(W, r, 23) END ;
+       NEW(T); Texts.Open(T, ""); Texts.Append(T, W.buf);
+diff --git a/src/runtime/Math.Mod b/src/runtime/Math.Mod
+index 89707f0f..2d746ff4 100644
+--- a/src/runtime/Math.Mod
++++ b/src/runtime/Math.Mod
+@@ -106,6 +106,9 @@
+   eps       = 2.9802322E-8;               (* 2 * *( - MantBits - 1) *)
+   piInv     = 0.31830988618379067154;     (* 1/pi *)
+   piByTwo   = 1.57079632679489661923132;
++  (* pi and pi/2 as LONGREAL, for reducing an argument in LONGREAL arithmetic *)
++  piL       = 3.1415926535897932384626433832795028841972D0;
++  piByTwoL  = 1.57079632679489661923132169163975144209858D0;
+   piByFour  = 0.78539816339744830962;
+   lnv       = 0.6931610107421875;         (* should be exact *)
+   vbytwo    = 0.13830277879601902638E-4;  (* used in sinh/cosh *)
+@@ -244,7 +247,7 @@
+   IF x # y THEN xn := xn - HALF END;
+ 
+   (* fractional part of reduced number *)
+-  f := SHORT(ABS(LONG(x)) - LONG(xn) * pi);
++  f := SHORT(ABS(LONG(x)) - LONG(xn) * piL);
+ 
+   (* Pre: |f| <= pi/2 *)
+   IF ABS(f) < Limit THEN RETURN sign * f END;
+@@ -384,7 +387,7 @@
+ 
+   (* determine n and the fraction f *)
+   n := round(x * twoByPi); xn := n;
+-  f := SHORT(LONG(x) - LONG(xn) * piByTwo);
++  f := SHORT(LONG(x) - LONG(xn) * piByTwoL);
+ 
+   (* check for underflow *)
+   IF ABS(f) < Limit THEN xnum := f; xden := ONE
+diff --git a/src/test/confidence/math/expected b/src/test/confidence/math/expected
+index fb01dc20..cf076751 100644
+--- a/src/test/confidence/math/expected
++++ b/src/test/confidence/math/expected
+@@ -94,32 +94,32 @@ Math.ln(-4.0000E+00): -3.40282E+38.  MathL.ln(-4.0000000000000D+000): -1.7976929
+ 
+ Math.sin(0.00000E+00): 0.00000E+00.  MathL.sin(0.00000000000000D+000): 0.00000000000000D+000
+ Math.sin(1.00000E-01): 9.98334E-02.  MathL.sin(1.00000000000000D-001): 9.98334166468282D-002
+-Math.sin(1.04720E+00): 8.66025E-01.  MathL.sin(1.04719755119660D+000): 8.66025403784440D-001
+-Math.sin(1.57080E+00): 1.00000E+00.  MathL.sin(1.57079632679490D+000): 9.99999999999999D-001
+-Math.sin(3.14159E+00): -3.10862E-15.  MathL.sin(3.14159265358979D+000): 3.23108679839857D-015
+-Math.sin(-1.0472E+00): -8.66025E-01.  MathL.sin(-1.0471975511966D+000): -8.6602540378444D-001
+-Math.sin(-1.5708E+00): -1.0000E+00.  MathL.sin(-1.5707963267949D+000): -9.99999999999999D-001
+-Math.sin(-3.14159E+00): 3.10862E-15.  MathL.sin(-3.14159265358979D+000): -3.23108679839857D-015
++Math.sin(1.04720E+00): 8.66025E-01.  MathL.sin(1.04719755119660D+000): 8.66025403784439D-001
++Math.sin(1.57080E+00): 1.00000E+00.  MathL.sin(1.57079632679490D+000): 1.00000000000000D+000
++Math.sin(3.14159E+00): -8.74228E-08.  MathL.sin(3.14159265358979D+000): 1.22464023514027D-016
++Math.sin(-1.0472E+00): -8.66025E-01.  MathL.sin(-1.0471975511966D+000): -8.66025403784439D-001
++Math.sin(-1.5708E+00): -1.0000E+00.  MathL.sin(-1.5707963267949D+000): -1.0000000000000D+000
++Math.sin(-3.14159E+00): 8.74228E-08.  MathL.sin(-3.14159265358979D+000): -1.22464023514027D-016
+ 
+-Math.cos(0.00000E+00): 1.00000E+00.  MathL.cos(0.00000000000000D+000): 9.99999999999999D-001
+-Math.cos(1.00000E-01): 9.95004E-01.  MathL.cos(1.00000000000000D-001): 9.95004165278025D-001
+-Math.cos(1.04720E+00): 5.00000E-01.  MathL.cos(1.04719755119660D+000): 4.99999999999998D-001
+-Math.cos(1.57080E+00): -1.55431E-15.  MathL.cos(1.57079632679490D+000): -3.49148251407644D-015
+-Math.cos(3.14159E+00): -1.0000E+00.  MathL.cos(3.14159265358979D+000): -9.99999999999999D-001
+-Math.cos(-1.0472E+00): 5.00000E-01.  MathL.cos(-1.0471975511966D+000): 4.99999999999998D-001
+-Math.cos(-1.5708E+00): -1.55431E-15.  MathL.cos(-1.5707963267949D+000): -3.49148251407644D-015
+-Math.cos(-3.14159E+00): -1.0000E+00.  MathL.cos(-3.14159265358979D+000): -9.99999999999999D-001
++Math.cos(0.00000E+00): 1.00000E+00.  MathL.cos(0.00000000000000D+000): 1.00000000000000D-001
++Math.cos(1.00000E-01): 9.95004E-01.  MathL.cos(1.00000000000000D-001): 9.95004165278026D-001
++Math.cos(1.04720E+00): 5.00000E-01.  MathL.cos(1.04719755119660D+000): 5.00000000000000D-001
++Math.cos(1.57080E+00): -4.37114E-08.  MathL.cos(1.57079632679490D+000): 6.12320117570134D-017
++Math.cos(3.14159E+00): -1.0000E+00.  MathL.cos(3.14159265358979D+000): -1.0000000000000D+000
++Math.cos(-1.0472E+00): 5.00000E-01.  MathL.cos(-1.0471975511966D+000): 5.00000000000000D-001
++Math.cos(-1.5708E+00): -4.37114E-08.  MathL.cos(-1.5707963267949D+000): 6.12320117570134D-017
++Math.cos(-3.14159E+00): -1.0000E+00.  MathL.cos(-3.14159265358979D+000): -1.0000000000000D+000
+ 
+ Math.tan(0.00000E+00): 0.00000E+00.  MathL.tan(0.00000000000000D+000): 0.00000000000000D+000
+ Math.tan(1.00000E-01): 1.00335E-01.  MathL.tan(1.00000000000000D-001): 1.00334672085451D-001
+ Math.tan(1.04720E+00): 1.73205E+00.  MathL.tan(1.04719755119660D+000): 1.73205080756888D+000
+-Math.tan(1.57080E+00): 3.00240E+14.  MathL.tan(1.57079632679490D+000): 2.02340838177263D+007
+-Math.tan(3.14159E+00): -6.66134E-15.  MathL.tan(3.14159265358979D+000): 3.23108679839857D-015
++Math.tan(1.57080E+00): -2.28773E+07.  MathL.tan(1.57079632679490D+000): 1.79769296342094D+308
++Math.tan(3.14159E+00): 8.74228E-08.  MathL.tan(3.14159265358979D+000): 1.22464023514027D-016
+ Math.tan(-1.0472E+00): -1.73205E+00.  MathL.tan(-1.0471975511966D+000): -1.73205080756888D+000
+-Math.tan(-1.5708E+00): -3.0024E+14.  MathL.tan(-1.5707963267949D+000): -2.02340838177263D+007
+-Math.tan(-3.14159E+00): 6.66134E-15.  MathL.tan(-3.14159265358979D+000): -3.23108679839857D-015
++Math.tan(-1.5708E+00): 2.28773E+07.  MathL.tan(-1.5707963267949D+000): 1.79769296342094D+308
++Math.tan(-3.14159E+00): -8.74228E-08.  MathL.tan(-3.14159265358979D+000): -1.22464023514027D-016
+ 
+-Math.arcsin(9.00000E-01): -4.51027E-01.  MathL.arcsin(9.00000000000000D-001): 1.11976951499864D+000
++Math.arcsin(9.00000E-01): -4.51027E-01.  MathL.arcsin(9.00000000000000D-001): 1.11976951499863D+000
+ Math.arcsin(1.00000E+00): -0.0000E+00.  MathL.arcsin(1.00000000000000D+000): 1.57079632679490D+000
+ Math.arcsin(1.40000E+00): 3.40282E+38.  MathL.arcsin(1.40000000000000D+000): 1.79769296342094D+308
+ Math.arcsin(1.50000E+00): 3.40282E+38.  MathL.arcsin(1.50000000000000D+000): 1.79769296342094D+308
+@@ -130,7 +130,7 @@ Math.arcsin(2.40000E+00): 3.40282E+38.  MathL.arcsin(2.40000000000000D+000): 1.7
+ Math.arcsin(2.50000E+00): 3.40282E+38.  MathL.arcsin(2.50000000000000D+000): 1.79769296342094D+308
+ Math.arcsin(3.00000E+00): 3.40282E+38.  MathL.arcsin(3.00000000000000D+000): 1.79769296342094D+308
+ Math.arcsin(4.00000E+00): 3.40282E+38.  MathL.arcsin(4.00000000000000D+000): 1.79769296342094D+308
+-Math.arcsin(-9.0000E-01): -4.51027E-01.  MathL.arcsin(-9.0000000000000D-001): -1.11976951499864D+000
++Math.arcsin(-9.0000E-01): -4.51027E-01.  MathL.arcsin(-9.0000000000000D-001): -1.11976951499863D+000
+ Math.arcsin(-1.0000E+00): -0.0000E+00.  MathL.arcsin(-1.0000000000000D+000): -1.5707963267949D+000
+ Math.arcsin(-1.4000E+00): 3.40282E+38.  MathL.arcsin(-1.4000000000000D+000): 1.79769296342094D+308
+ Math.arcsin(-1.5000E+00): 3.40282E+38.  MathL.arcsin(-1.5000000000000D+000): 1.79769296342094D+308
+@@ -142,7 +142,7 @@ Math.arcsin(-2.5000E+00): 3.40282E+38.  MathL.arcsin(-2.5000000000000D+000): 1.7
+ Math.arcsin(-3.0000E+00): 3.40282E+38.  MathL.arcsin(-3.0000000000000D+000): 1.79769296342094D+308
+ Math.arcsin(-4.0000E+00): 3.40282E+38.  MathL.arcsin(-4.0000000000000D+000): 1.79769296342094D+308
+ 
+-Math.arccos(9.00000E-01): -4.51027E-01.  MathL.arccos(9.00000000000000D-001): 4.51026811796263D-001
++Math.arccos(9.00000E-01): -4.51027E-01.  MathL.arccos(9.00000000000000D-001): 4.51026811796262D-001
+ Math.arccos(1.00000E+00): -0.0000E+00.  MathL.arccos(1.00000000000000D+000): 0.00000000000000D+000
+ Math.arccos(1.40000E+00): 3.40282E+38.  MathL.arccos(1.40000000000000D+000): 1.79769296342094D+308
+ Math.arccos(1.50000E+00): 3.40282E+38.  MathL.arccos(1.50000000000000D+000): 1.79769296342094D+308
+@@ -165,28 +165,28 @@ Math.arccos(-2.5000E+00): 3.40282E+38.  MathL.arccos(-2.5000000000000D+000): 1.7
+ Math.arccos(-3.0000E+00): 3.40282E+38.  MathL.arccos(-3.0000000000000D+000): 1.79769296342094D+308
+ Math.arccos(-4.0000E+00): 3.40282E+38.  MathL.arccos(-4.0000000000000D+000): 1.79769296342094D+308
+ 
+-Math.arctan(9.00000E-01): 7.32815E-01.  MathL.arctan(9.00000000000000D-001): 7.32815101786508D-001
+-Math.arctan(1.00000E+00): 7.85398E-01.  MathL.arctan(1.00000000000000D+000): 7.85398163397449D-001
+-Math.arctan(1.40000E+00): 9.50547E-01.  MathL.arctan(1.40000000000000D+000): 9.50546840812077D-001
+-Math.arctan(1.50000E+00): 9.82794E-01.  MathL.arctan(1.50000000000000D+000): 9.82793723247331D-001
+-Math.arctan(1.60000E+00): 1.01220E+00.  MathL.arctan(1.60000000000000D+000): 1.01219701145134D+000
+-Math.arctan(1.90000E+00): 1.08632E+00.  MathL.arctan(1.90000000000000D+000): 1.08631839775788D+000
++Math.arctan(9.00000E-01): 7.32815E-01.  MathL.arctan(9.00000000000000D-001): 7.32815101786507D-001
++Math.arctan(1.00000E+00): 7.85398E-01.  MathL.arctan(1.00000000000000D+000): 7.85398163397448D-001
++Math.arctan(1.40000E+00): 9.50547E-01.  MathL.arctan(1.40000000000000D+000): 9.50546840812075D-001
++Math.arctan(1.50000E+00): 9.82794E-01.  MathL.arctan(1.50000000000000D+000): 9.82793723247329D-001
++Math.arctan(1.60000E+00): 1.01220E+00.  MathL.arctan(1.60000000000000D+000): 1.01219701145133D+000
++Math.arctan(1.90000E+00): 1.08632E+00.  MathL.arctan(1.90000000000000D+000): 1.08631839775787D+000
+ Math.arctan(2.00000E+00): 1.10715E+00.  MathL.arctan(2.00000000000000D+000): 1.10714871779409D+000
+ Math.arctan(2.40000E+00): 1.17601E+00.  MathL.arctan(2.40000000000000D+000): 1.17600520709514D+000
+ Math.arctan(2.50000E+00): 1.19029E+00.  MathL.arctan(2.50000000000000D+000): 1.19028994968253D+000
+-Math.arctan(3.00000E+00): 1.24905E+00.  MathL.arctan(3.00000000000000D+000): 1.24904577239826D+000
+-Math.arctan(4.00000E+00): 1.32582E+00.  MathL.arctan(4.00000000000000D+000): 1.32581766366804D+000
+-Math.arctan(-9.0000E-01): -7.32815E-01.  MathL.arctan(-9.0000000000000D-001): -7.32815101786508D-001
+-Math.arctan(-1.0000E+00): -7.85398E-01.  MathL.arctan(-1.0000000000000D+000): -7.85398163397449D-001
+-Math.arctan(-1.4000E+00): -9.50547E-01.  MathL.arctan(-1.4000000000000D+000): -9.50546840812077D-001
+-Math.arctan(-1.5000E+00): -9.82794E-01.  MathL.arctan(-1.5000000000000D+000): -9.82793723247331D-001
+-Math.arctan(-1.6000E+00): -1.0122E+00.  MathL.arctan(-1.6000000000000D+000): -1.01219701145134D+000
+-Math.arctan(-1.9000E+00): -1.08632E+00.  MathL.arctan(-1.9000000000000D+000): -1.08631839775788D+000
++Math.arctan(3.00000E+00): 1.24905E+00.  MathL.arctan(3.00000000000000D+000): 1.24904577239825D+000
++Math.arctan(4.00000E+00): 1.32582E+00.  MathL.arctan(4.00000000000000D+000): 1.32581766366803D+000
++Math.arctan(-9.0000E-01): -7.32815E-01.  MathL.arctan(-9.0000000000000D-001): -7.32815101786507D-001
++Math.arctan(-1.0000E+00): -7.85398E-01.  MathL.arctan(-1.0000000000000D+000): -7.85398163397448D-001
++Math.arctan(-1.4000E+00): -9.50547E-01.  MathL.arctan(-1.4000000000000D+000): -9.50546840812075D-001
++Math.arctan(-1.5000E+00): -9.82794E-01.  MathL.arctan(-1.5000000000000D+000): -9.82793723247329D-001
++Math.arctan(-1.6000E+00): -1.0122E+00.  MathL.arctan(-1.6000000000000D+000): -1.01219701145133D+000
++Math.arctan(-1.9000E+00): -1.08632E+00.  MathL.arctan(-1.9000000000000D+000): -1.08631839775787D+000
+ Math.arctan(-2.0000E+00): -1.10715E+00.  MathL.arctan(-2.0000000000000D+000): -1.10714871779409D+000
+ Math.arctan(-2.4000E+00): -1.17601E+00.  MathL.arctan(-2.4000000000000D+000): -1.17600520709514D+000
+ Math.arctan(-2.5000E+00): -1.19029E+00.  MathL.arctan(-2.5000000000000D+000): -1.19028994968253D+000
+-Math.arctan(-3.0000E+00): -1.24905E+00.  MathL.arctan(-3.0000000000000D+000): -1.24904577239826D+000
+-Math.arctan(-4.0000E+00): -1.32582E+00.  MathL.arctan(-4.0000000000000D+000): -1.32581766366804D+000
++Math.arctan(-3.0000E+00): -1.24905E+00.  MathL.arctan(-3.0000000000000D+000): -1.24904577239825D+000
++Math.arctan(-4.0000E+00): -1.32582E+00.  MathL.arctan(-4.0000000000000D+000): -1.32581766366803D+000
+ 
+ Math.sinh(9.00000E-01): 1.02652E+00.  MathL.sinh(9.00000000000000D-001): 1.02651672570818D+000
+ Math.sinh(1.00000E+00): 1.17520E+00.  MathL.sinh(1.00000000000000D+000): 1.17520119364380D+000
+diff --git a/src/test/confidence/out/expected b/src/test/confidence/out/expected
+index dab1e079..cb43b5e3 100644
+--- a/src/test/confidence/out/expected
++++ b/src/test/confidence/out/expected
+@@ -6,7 +6,7 @@ Real number hex representation.
+ -1.1D0:                BFF199999999999A
+  1.1D3:                4091300000000000
+  1.1D-3:               3F5205BC01A36E2F
+- 1.2345678987654321D3: 40934A45874103D8
++ 1.2345678987654321D3: 40934A45874103E1
+  0.0:                  0000000000000000
+  0.000123D0:           3F201F31F46ED246
+  1/0.0:                7FF0000000000000
+@@ -68,7 +68,7 @@ Testing LONGREAL.
+ -1.1D0:                                -1.1000000000000000D+000
+  1.1D3:                                 1.1000000000000000D+003
+  1.1D-3:                                1.1000000000000000D-003
+- 1.2345678987654321D3:                  1.2345678987654300D+003
++ 1.2345678987654321D3:                  1.2345678987654320D+003
+  0.0:                                   0.0000000000000000D+000
+  0.000123D0:                            1.2300000000000000D-004
+  1/0.0:                                                Infinity
+@@ -134,7 +134,7 @@ Real number hex representation.
+ -1.1D0:                BFF199999999999A
+  1.1D3:                4091300000000000
+  1.1D-3:               3F5205BC01A36E2F
+- 1.2345678987654321D3: 40934A45874103D8
++ 1.2345678987654321D3: 40934A45874103E1
+  0.0:                  0000000000000000
+  0.000123D0:           3F201F31F46ED246
+  1/0.0:                7FF0000000000000
+@@ -196,7 +196,7 @@ Testing LONGREAL.
+ -1.1D0:                                -1.1000000000000000D+000
+  1.1D3:                                 1.1000000000000000D+003
+  1.1D-3:                                1.1000000000000000D-003
+- 1.2345678987654321D3:                  1.2345678987654300D+003
++ 1.2345678987654321D3:                  1.2345678987654320D+003
+  0.0:                                   0.0000000000000000D+000
+  0.000123D0:                            1.2300000000000000D-004
+  1/0.0:                                                Infinity
+-- 
+2.55.0
+

@@ -1,0 +1,73 @@
+From d7e2fa72443698cfb58f006760b1eb4d93c0eb86 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:33:59 -0400
+Subject: [PATCH 43/48] Texts: an infinity is written as Infinity, not NaN
+
+WriteReal, WriteLongReal and WriteRealFix wrote " NaN" for any number
+whose exponent field is all ones, so an infinity, positive or negative,
+was written as NaN. A NaN is still " NaN"; an infinity is now written
+" Infinity" or "-Infinity", as Out.Real writes it, padded with blanks
+to n characters as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index aba83032..c00f6524 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -574,6 +574,18 @@
+     REPEAT DEC(i); Write(W, a[i]) UNTIL i = 0
+   END WriteHex;
+ 
++  (* " NaN", " Infinity" or "-Infinity" for x, whose exponent field is all
++     ones, then blanks up to n characters *)
++  PROCEDURE WriteSpecial (VAR W: Writer; x: LONGREAL; n: INTEGER);
++  BEGIN
++    IF x # x THEN WriteString(W, " NaN"); DEC(n, 4)
++    ELSE
++      IF x < 0 THEN Write(W, "-") ELSE Write(W, " ") END;
++      WriteString(W, "Infinity"); DEC(n, 9)
++    END;
++    WHILE n > 0 DO Write(W, " "); DEC(n) END
++  END WriteSpecial;
++
+   PROCEDURE WriteReal* (VAR W: Writer; x: REAL; n: INTEGER);
+     VAR e: INTEGER; x0: REAL;
+       d: ARRAY maxD OF CHAR;
+@@ -581,9 +593,7 @@
+     IF e = 0 THEN
+       WriteString(W, "  0");
+       REPEAT Write(W, " "); DEC(n) UNTIL n <= 3
+-    ELSIF e = 255 THEN
+-      WriteString(W, " NaN");
+-      WHILE n > 4 DO Write(W, " "); DEC(n) END
++    ELSIF e = 255 THEN WriteSpecial(W, x, n)
+     ELSE
+       IF n <= 9 THEN n := 3 ELSE DEC(n, 6) END;
+       REPEAT Write(W, " "); DEC(n) UNTIL n <= 8;
+@@ -621,7 +631,7 @@
+   BEGIN e := Reals.Expo(x);
+     IF k < 0 THEN k := 0 END;
+     IF e = 0 THEN seq(" ", n-k-2); Write(W, "0"); seq(" ", k+1)
+-    ELSIF e = 255 THEN WriteString(W, " NaN"); seq(" ", n-4)
++    ELSIF e = 255 THEN WriteSpecial(W, x, n)
+     ELSE e := (e - 127) * 77 DIV 256;
+       IF x < 0 THEN sign := "-"; x := -x ELSE sign := " " END;
+       IF e >= 0 THEN  (*x >= 1.0,  77/256 = log 2*) x := x/Reals.Ten(e)
+@@ -661,9 +671,7 @@
+     IF e = 0 THEN
+       WriteString(W, "  0");
+       REPEAT Write(W, " "); DEC(n) UNTIL n <= 3
+-    ELSIF e = 2047 THEN
+-      WriteString(W, " NaN");
+-      WHILE n > 4 DO Write(W, " "); DEC(n) END
++    ELSIF e = 2047 THEN WriteSpecial(W, x, n)
+     ELSE
+       IF n <= 10 THEN n := 3 ELSE DEC(n, 7) END;
+       REPEAT Write(W, " "); DEC(n) UNTIL n <= maxD;
+-- 
+2.55.0
+

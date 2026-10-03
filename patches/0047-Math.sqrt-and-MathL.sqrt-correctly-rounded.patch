@@ -1,0 +1,194 @@
+From aca1a2b9dde694cf52fb819378e1513ba98a8302 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:40:02 -0400
+Subject: [PATCH 47/48] Math.sqrt and MathL.sqrt: correctly rounded
+
+sqrt took two or three Newton steps from a linear estimate, multiplied
+by sqrt(1/2) for an odd exponent, and scaled, each step rounding, so the
+result was often a unit or more in the last place off. Of 3007 random
+positive doubles, MathL.sqrt got 2029 wrong (MathL.sqrt(2.0D0) was
+1.4142135623730949, not 1.4142135623730951), a denormal's far off, since
+fraction and exponent assume a normal number; of 3003 random REALs,
+Math.sqrt got 746 wrong, and Math.sqrt(1.0) was 0.99999994. IEEE 754
+requires the square root correctly rounded.
+
+MathL.sqrt now computes the integer square root of x's significand bit
+by bit, as fdlibm's e_sqrt.c does, to 54 bits in 64-bit integers, and
+rounds once; a denormal is normalized first, an infinity or a NaN
+returned as it is. Math.sqrt rounds that LONGREAL square root (its own
+copy, SqrtL, as Math cannot import MathL) to REAL, which for a square
+root gives the correctly rounded REAL (53 >= 2*24 + 2). Both now agree
+with the C library's sqrt and sqrtf on all of those values.
+
+The confidence test math's MathL.sqrt(2) lines change from
+1.41421356237309D+000, the digits of the old, low result, to
+1.41421356237310D+000. (Applied without the Out.Real fixes before it in
+this series, the Math.sqrt(1.0) lines change instead: 0.99999994 was
+written 1.00000E-01 by Out.Real's exponent bug; it is now 1.0.)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Math.Mod              | 50 ++++++++++++++++++------------
+ src/runtime/MathL.Mod             | 51 +++++++++++++++++++------------
+ src/test/confidence/math/expected |  4 +--
+ 3 files changed, 64 insertions(+), 41 deletions(-)
+
+diff --git a/src/runtime/Math.Mod b/src/runtime/Math.Mod
+index e72dd6dd..71ce43b9 100644
+--- a/src/runtime/Math.Mod
++++ b/src/runtime/Math.Mod
+@@ -303,31 +303,41 @@
+   END
+ END round;
+ 
++PROCEDURE SqrtL (x: LONGREAL): LONGREAL;
++  (* The square root of x > 0, finite, correctly rounded: the square root of
++     x's integer significand, bit by bit (as in fdlibm's e_sqrt.c), to 54
++     bits, then rounded once to 53. (MathL.sqrt is the same.) *)
++  CONST two52 = 4503599627370496; two53 = 9007199254740992;
++  VAR bits, m, q, r, t, pair, place, e, k: SYSTEM.INT64; i: INTEGER;
++BEGIN
++  bits := SYSTEM.VAL(SYSTEM.INT64, x);
++  e := bits DIV two52 MOD 2048; m := bits MOD two52;
++  m := m + two52;                             (* a REAL is never a LONGREAL denormal *)
++  k := e - 1023 - 52;                         (* x = m * 2^k, 2^52 <= m < 2^53 *)
++  IF ODD(k) THEN m := m * 2; DEC(k) END;      (* k even, 2^52 <= m < 2^54 *)
++  q := 0; r := 0; place := two52;
++  FOR i := 0 TO 53 DO
++    IF place > 0 THEN pair := m DIV place MOD 4; place := place DIV 4 ELSE pair := 0 END;
++    r := r * 4 + pair; t := q * 4 + 1;
++    IF r >= t THEN r := r - t; q := q * 2 + 1 ELSE q := q * 2 END
++  END;
++  q := (q + 1) DIV 2;
++  e := k DIV 2 + 26 + 1023;
++  IF q = two53 THEN q := q DIV 2; INC(e) END;
++  bits := e * two52 + (q - two52);
++  RETURN SYSTEM.VAL(LONGREAL, bits)
++END SqrtL;
++
+ PROCEDURE sqrt* (x: REAL): REAL;
+-  (* Returns the positive square root of x where x >= 0 *)
+-  CONST
+-    P0 = 0.41731; P1 = 0.59016;
+-  VAR
+-    xMant, yEst, z: REAL; xExp: INTEGER;
++  (* Returns the positive square root of x where x >= 0, correctly rounded:
++     the LONGREAL square root, correctly rounded, rounded again to REAL,
++     which for a square root gives the same (53 >= 2*24 + 2) *)
+ BEGIN
+   (* optimize zeros and check for illegal negative roots *)
+   IF x = ZERO THEN RETURN ZERO END;
+   IF x < ZERO THEN ErrorHandler(IllegalRoot); x := -x END;
+-
+-  (* reduce the input number to the range 0.5 <= x <= 1.0 *)
+-  xMant := fraction(x) * HALF; xExp := exponent(x) + 1;
+-
+-  (* initial estimate of the square root *)
+-  yEst := P0 + P1 * xMant;
+-
+-  (* perform two newtonian iterations *)
+-  z := (yEst + xMant/yEst); yEst := 0.25 * z + xMant/z;
+-
+-  (* adjust for odd exponents *)
+-  IF ODD(xExp) THEN yEst := yEst * sqrtHalf; INC(xExp) END;
+-
+-  (* single Newtonian iteration to produce real number accuracy *)
+-  RETURN scale(yEst, xExp DIV 2)
++  IF x - x # ZERO THEN RETURN x END;          (* infinity, NaN *)
++  RETURN SHORT(SqrtL(x))
+ END sqrt;
+ 
+ PROCEDURE exp* (x: REAL): REAL;
+diff --git a/src/runtime/MathL.Mod b/src/runtime/MathL.Mod
+index 6c8ed53b..44e0d24d 100644
+--- a/src/runtime/MathL.Mod
++++ b/src/runtime/MathL.Mod
+@@ -285,31 +285,44 @@
+ PROCEDURE^ sincos* (x: LONGREAL; VAR Sin, Cos: LONGREAL);
+ 
+ PROCEDURE sqrt*(x: LONGREAL): LONGREAL;
+-  (* Returns the positive square root of x where x >= 0 *)
+-  CONST
+-    P0=0.41731; P1=0.59016;
+-  VAR
+-    xMant, yEst, z: LONGREAL; xExp: INTEGER;
++  (* Returns the positive square root of x where x >= 0, correctly rounded:
++     the square root of x's integer significand, bit by bit (as in fdlibm's
++     e_sqrt.c), to 54 bits, then rounded once to 53. *)
++  CONST two52 = 4503599627370496; two53 = 9007199254740992;
++  VAR bits, m, q, r, t, pair, place, e, k: SYSTEM.INT64; i: INTEGER;
+ BEGIN
+   (* optimize zeros and check for illegal negative roots *)
+   IF x=ZERO THEN RETURN ZERO END;
+   IF x < ZERO THEN Math.ErrorHandler(Math.IllegalRoot); x := -x END;
+ 
+-  (* reduce the input number to the range 0.5 <= x <= 1.0 *)
+-  xMant := fraction(x)*HALF; xExp := exponent(x) + 1;
+-
+-  (* initial estimate of the square root *)
+-  yEst := P0 + P1*xMant;
+-
+-  (* perform three newtonian iterations *)
+-  z := (yEst + xMant/yEst); yEst := 0.25*z + xMant/z;
+-  yEst := HALF*(yEst + xMant/yEst);
+-
+-  (* adjust for odd exponents *)
+-  IF ODD(xExp) THEN yEst := yEst*sqrtHalf; INC(xExp) END;
++  bits := SYSTEM.VAL(SYSTEM.INT64, x);
++  e := bits DIV two52 MOD 2048;               (* the biased exponent *)
++  m := bits MOD two52;                        (* the fraction *)
++  IF e = 2047 THEN RETURN x END;              (* infinity, NaN *)
++  IF e = 0 THEN (* a denormal: normalize it *)
++    e := 1; WHILE m < two52 DO m := m * 2; DEC(e) END
++  ELSE m := m + two52
++  END;
++  (* x = m * 2^k, 2^52 <= m < 2^53; make k even, so 2^52 <= m < 2^54 *)
++  k := e - 1023 - 52;
++  IF ODD(k) THEN m := m * 2; DEC(k) END;
++
++  (* q := the integer square root of m * 2^54, 2^53 <= q < 2^54, and r the
++     remainder, two bits of the radicand at a time: m's, then zeros *)
++  q := 0; r := 0; place := two52;             (* 4^26: m's first pair *)
++  FOR i := 0 TO 53 DO
++    IF place > 0 THEN pair := m DIV place MOD 4; place := place DIV 4 ELSE pair := 0 END;
++    r := r * 4 + pair; t := q * 4 + 1;
++    IF r >= t THEN r := r - t; q := q * 2 + 1 ELSE q := q * 2 END
++  END;
+ 
+-  (* single Newtonian iteration to produce real number accuracy *)
+-  RETURN scale(yEst, xExp DIV 2)
++  (* sqrt(x) = q * 2^(k/2 - 27), q's last bit the first one rounded away;
++     the square root is never exactly halfway, so that bit decides *)
++  q := (q + 1) DIV 2;                         (* 53 bits, or 2^53 *)
++  e := k DIV 2 + 26 + 1023;                   (* the biased exponent *)
++  IF q = two53 THEN q := q DIV 2; INC(e) END;
++  bits := e * two52 + (q - two52);
++  RETURN SYSTEM.VAL(LONGREAL, bits)
+ END sqrt;
+ 
+ PROCEDURE exp*(x: LONGREAL): LONGREAL;
+diff --git a/src/test/confidence/math/expected b/src/test/confidence/math/expected
+index c253a797..dce80f29 100644
+--- a/src/test/confidence/math/expected
++++ b/src/test/confidence/math/expected
+@@ -52,7 +52,7 @@ Math.sqrt(1.40000E+00): 1.18322E+00.  MathL.sqrt(1.40000000000000D+000): 1.18321
+ Math.sqrt(1.50000E+00): 1.22474E+00.  MathL.sqrt(1.50000000000000D+000): 1.22474487139159D+000
+ Math.sqrt(1.60000E+00): 1.26491E+00.  MathL.sqrt(1.60000000000000D+000): 1.26491106406735D+000
+ Math.sqrt(1.90000E+00): 1.37840E+00.  MathL.sqrt(1.90000000000000D+000): 1.37840487520902D+000
+-Math.sqrt(2.00000E+00): 1.41421E+00.  MathL.sqrt(2.00000000000000D+000): 1.41421356237309D+000
++Math.sqrt(2.00000E+00): 1.41421E+00.  MathL.sqrt(2.00000000000000D+000): 1.41421356237310D+000
+ Math.sqrt(2.40000E+00): 1.54919E+00.  MathL.sqrt(2.40000000000000D+000): 1.54919333848297D+000
+ Math.sqrt(2.50000E+00): 1.58114E+00.  MathL.sqrt(2.50000000000000D+000): 1.58113883008419D+000
+ Math.sqrt(3.00000E+00): 1.73205E+00.  MathL.sqrt(3.00000000000000D+000): 1.73205080756888D+000
+@@ -63,7 +63,7 @@ Math.sqrt(-1.4000E+00): 1.18322E+00.  MathL.sqrt(-1.4000000000000D+000): 1.18321
+ Math.sqrt(-1.5000E+00): 1.22474E+00.  MathL.sqrt(-1.5000000000000D+000): 1.22474487139159D+000
+ Math.sqrt(-1.6000E+00): 1.26491E+00.  MathL.sqrt(-1.6000000000000D+000): 1.26491106406735D+000
+ Math.sqrt(-1.9000E+00): 1.37840E+00.  MathL.sqrt(-1.9000000000000D+000): 1.37840487520902D+000
+-Math.sqrt(-2.0000E+00): 1.41421E+00.  MathL.sqrt(-2.0000000000000D+000): 1.41421356237309D+000
++Math.sqrt(-2.0000E+00): 1.41421E+00.  MathL.sqrt(-2.0000000000000D+000): 1.41421356237310D+000
+ Math.sqrt(-2.4000E+00): 1.54919E+00.  MathL.sqrt(-2.4000000000000D+000): 1.54919333848297D+000
+ Math.sqrt(-2.5000E+00): 1.58114E+00.  MathL.sqrt(-2.5000000000000D+000): 1.58113883008419D+000
+ Math.sqrt(-3.0000E+00): 1.73205E+00.  MathL.sqrt(-3.0000000000000D+000): 1.73205080756888D+000
+-- 
+2.55.0
+

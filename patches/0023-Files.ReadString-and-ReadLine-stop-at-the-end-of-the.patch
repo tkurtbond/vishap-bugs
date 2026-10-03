@@ -1,0 +1,53 @@
+From 149434954cf5fb2d886ad4e28161fa9195c0697f Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:31:30 -0400
+Subject: [PATCH 23/48] Files.ReadString and ReadLine stop at the end of the
+ array
+
+Both stored every character up to the 0X (or line feed) with no bound,
+so a longer value was an index trap, or a write past x without -x. A
+value too long for x is now cut short to end it with 0X, and the rest of
+it is read and dropped, so the rider is after it as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Files.Mod | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/src/runtime/Files.Mod b/src/runtime/Files.Mod
+index 081ad5df..01b7de5d 100644
+--- a/src/runtime/Files.Mod
++++ b/src/runtime/Files.Mod
+@@ -655,17 +655,24 @@
+   BEGIN ReadBytes(R, b, 8); FlipBytes(b, x)
+   END ReadLReal;
+ 
++  (* A string or line too long for x is cut short to end it with 0X; the
++     rest of it is read and dropped. *)
+   PROCEDURE ReadString* (VAR R: Rider; VAR x: ARRAY OF CHAR);
+-    VAR i: INTEGER; ch: CHAR;
++    VAR i: LONGINT; ch: CHAR;
+   BEGIN i := 0;
+-    REPEAT Read(R, ch); x[i] := ch; INC(i) UNTIL ch = 0X
++    REPEAT Read(R, ch);
++      IF i < LEN(x) - 1 THEN x[i] := ch; INC(i) END
++    UNTIL ch = 0X;
++    x[i] := 0X
+   END ReadString;
+ 
+   PROCEDURE ReadLine* (VAR R: Rider; VAR x: ARRAY OF CHAR);
+-  VAR i: INTEGER;
++  VAR i: LONGINT; ch: CHAR;
+   BEGIN
+-    i := 0; REPEAT Read(R, x[i]); INC(i) UNTIL (x[i-1] = 0X) OR (x[i-1] = 0AX);
+-    IF x[i-1] = 0AX THEN DEC(i) END;             (* Omit trailing LF *)
++    i := 0;
++    REPEAT Read(R, ch);
++      IF (ch # 0X) & (ch # 0AX) & (i < LEN(x) - 1) THEN x[i] := ch; INC(i) END
++    UNTIL (ch = 0X) OR (ch = 0AX);                (* Omit trailing LF *)
+     IF (i > 0) & (x[i-1] = 0DX) THEN DEC(i) END; (* Also omit preceeding trailing CR if present. *)
+     x[i] := 0X;                                  (* Guarantee zero termination. *)
+   END ReadLine;
+-- 
+2.55.0
+

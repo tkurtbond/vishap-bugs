@@ -1,0 +1,149 @@
+From eeddff55e57914f697b0491f59b9cb0ef137ab0c Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:39:09 -0400
+Subject: [PATCH 29/48] Strings.StrToReal and StrToLongReal round correctly
+
+Needs the previous commit (the exponent's + sign), whose lines this one
+replaces.
+
+They built the value digit by digit (y * 10 + d, then g / 10 for each
+fraction digit) and scaled it by Reals.Ten, each step rounding, so 0.3
+was not the double nearest 0.3, nor 1.0E23 the one nearest 10^23. The
+numeral is now handed to C's strtod (strtof for REAL), which rounds
+correctly; a D exponent is written E for it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Strings.Mod | 105 +++++++++++++++-------------------------
+ 1 file changed, 40 insertions(+), 65 deletions(-)
+
+diff --git a/src/runtime/Strings.Mod b/src/runtime/Strings.Mod
+index 44239b74..907d0c9d 100644
+--- a/src/runtime/Strings.Mod
++++ b/src/runtime/Strings.Mod
+@@ -29,7 +29,7 @@
+ -------------------------------------------------------------*)
+ (* added from trianus v4 *)
+ MODULE Strings;  (*HM 94-06-22 /  *) (* noch 2017-06-21 *)
+-IMPORT Reals;
++IMPORT SYSTEM;
+ 
+ PROCEDURE Length* (s: ARRAY OF CHAR): INTEGER;
+   VAR i: LONGINT;
+@@ -156,74 +156,49 @@
+   RETURN M(string, pattern, Length(string)-1, Length(pattern)-1)
+ END Match;
+ 
++(* C's strtod and strtof round a decimal numeral correctly. *)
++PROCEDURE -AAincludeStdlib '#include <stdlib.h>';
++PROCEDURE -strtod(s: ARRAY OF CHAR): LONGREAL 'strtod((const char*)s, 0)';
++PROCEDURE -strtof(s: ARRAY OF CHAR): REAL 'strtof((const char*)s, 0)';
++
++(* The numeral at the start of s, as strtod reads it: blanks before it and
++   after its sign are dropped, and a D exponent is written E. *)
++PROCEDURE Numeral(VAR s, t: ARRAY OF CHAR);
++VAR p, i: LONGINT;
++
++  PROCEDURE Put(ch: CHAR);
++  BEGIN IF i < LEN(t) - 1 THEN t[i] := ch; INC(i) END
++  END Put;
++
++  PROCEDURE Is(ch: CHAR): BOOLEAN;
++  BEGIN RETURN (p < LEN(s)) & (s[p] = ch)
++  END Is;
++
++  PROCEDURE Digits;
++  BEGIN WHILE (p < LEN(s)) & ("0" <= s[p]) & (s[p] <= "9") DO Put(s[p]); INC(p) END
++  END Digits;
++
++BEGIN p := 0; i := 0;
++  WHILE Is(" ") DO INC(p) END;
++  IF Is("-") OR Is("+") THEN Put(s[p]); INC(p) END;
++  WHILE Is(" ") DO INC(p) END;
++  Digits;
++  IF Is(".") THEN Put("."); INC(p); Digits END;
++  IF Is("D") OR Is("E") THEN Put("E"); INC(p);
++    IF Is("-") OR Is("+") THEN Put(s[p]); INC(p) END;
++    Digits
++  END;
++  t[i] := 0X
++END Numeral;
++
+ PROCEDURE StrToReal*(s: ARRAY OF CHAR; VAR r: REAL);
+-VAR p, e: INTEGER; y, g: REAL; neg, negE: BOOLEAN;
+-BEGIN
+-	p := 0;
+-	WHILE (s[p] = " ") OR (s[p] = "0") DO INC(p) END;
+-	IF s[p] = "-" THEN neg := TRUE; INC(p) ELSE neg := FALSE END;
+-	WHILE (s[p] = " ") OR (s[p] = "0") DO INC(p) END;
+-
+-	y := 0;
+-	WHILE ("0" <= s[p]) & (s[p] <= "9") DO
+-		y := y * 10 + (ORD(s[p]) - 30H);
+-		INC(p);
+-	END;
+-	IF s[p] = "." THEN
+-		INC(p); g := 1;
+-		WHILE ("0" <= s[p]) & (s[p] <= "9") DO
+-			g := g / 10; y := y + g * (ORD(s[p]) - 30H);
+-			INC(p);
+-		END;
+-	END;
+-	IF (s[p] = "D") OR (s[p] = "E") THEN
+-		INC(p); e := 0;
+-		IF s[p] = "-" THEN negE := TRUE; INC(p) ELSE negE := FALSE; IF s[p] = "+" THEN INC(p) END END;
+-		WHILE (s[p] = "0") DO INC(p) END;
+-		WHILE ("0" <= s[p]) & (s[p] <= "9") DO
+-			e := e * 10 + (ORD(s[p]) - 30H);
+-			INC(p);
+-		END;
+-		IF negE THEN y := y / Reals.Ten(e)
+-		ELSE y := y * Reals.Ten(e) END;
+-	END;
+-	IF neg THEN y := -y END;
+-	r := y;
++VAR t: ARRAY 256 OF CHAR;
++BEGIN Numeral(s, t); r := strtof(t)
+ END StrToReal;
+ 
+ PROCEDURE StrToLongReal*(s: ARRAY OF CHAR; VAR r: LONGREAL);
+-VAR p, e: INTEGER; y, g: LONGREAL; neg, negE: BOOLEAN;
+-BEGIN
+-	p := 0;
+-	WHILE (s[p] = " ") OR (s[p] = "0") DO INC(p) END;
+-	IF s[p] = "-" THEN neg := TRUE; INC(p) ELSE neg := FALSE END;
+-	WHILE (s[p] = " ") OR (s[p] = "0") DO INC(p) END;
+-
+-	y := 0;
+-	WHILE ("0" <= s[p]) & (s[p] <= "9") DO
+-		y := y * 10 + (ORD(s[p]) - 30H);
+-		INC(p);
+-	END;
+-	IF s[p] = "." THEN
+-		INC(p); g := 1;
+-		WHILE ("0" <= s[p]) & (s[p] <= "9") DO
+-			g := g / 10; y := y + g * (ORD(s[p]) - 30H);
+-			INC(p);
+-		END;
+-	END;
+-	IF (s[p] = "D") OR (s[p] = "E") THEN
+-		INC(p); e := 0;
+-		IF s[p] = "-" THEN negE := TRUE; INC(p) ELSE negE := FALSE; IF s[p] = "+" THEN INC(p) END END;
+-		WHILE (s[p] = "0") DO INC(p) END;
+-		WHILE ("0" <= s[p]) & (s[p] <= "9") DO
+-			e := e * 10 + (ORD(s[p]) - 30H);
+-			INC(p);
+-		END;
+-		IF negE THEN y := y / Reals.Ten(e)
+-		ELSE y := y * Reals.Ten(e) END;
+-	END;
+-	IF neg THEN y := -y END;
+-	r := y;
++VAR t: ARRAY 256 OF CHAR;
++BEGIN Numeral(s, t); r := strtod(t)
+ END StrToLongReal;
+ 
+ END Strings.
+-- 
+2.55.0
+

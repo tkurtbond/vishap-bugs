@@ -1,0 +1,30 @@
+From 9c865093bf994cc7a9fa079097abea72dceb7c5a Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:29:17 -0400
+Subject: [PATCH 18/48] Strings.Insert at a position past the end appends
+
+Insert called Append(dest, source), its arguments the wrong way round:
+source is a value parameter, so dest was left as it was. Oakwood:
+"If pos = Length(dst), src is appended to dst."
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Strings.Mod | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/runtime/Strings.Mod b/src/runtime/Strings.Mod
+index 715c99b5..f8c7c7c9 100644
+--- a/src/runtime/Strings.Mod
++++ b/src/runtime/Strings.Mod
+@@ -53,7 +53,7 @@
+ BEGIN
+   n1 := Length(dest); n2 := Length(source);
+   IF pos < 0 THEN pos := 0 END ;
+-  IF pos > n1 THEN Append(dest, source); RETURN END ;
++  IF pos > n1 THEN Append(source, dest); RETURN END ;
+   IF pos + n2 < LEN(dest) THEN  (*make room for source*)
+     i := n1; (*move also 0X if it is there*)
+     WHILE i >= pos DO
+-- 
+2.55.0
+

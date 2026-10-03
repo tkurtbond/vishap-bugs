@@ -1,0 +1,106 @@
+From 123d9e1b1f00cfc212e44afe68adc16b8f3a3601 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:18:11 -0400
+Subject: [PATCH 39/48] Math and MathL: succ and pred give the neighbouring
+ numbers
+
+succ(x) was x + ulp(x)*sign(x), so for a negative x it moved down, not
+up: Math.succ(-1.0) was -1.0000001 and pred(-1.0) -0.9999999. And
+ulp(x) is the spacing above |x|, not below it, so at a power of two
+the step towards zero skipped a number: pred(1.0) was 1 - 2^-23, not
+1 - 2^-24 (MathL: 1 - 2^-52, not 1 - 2^-53). succ(0.0) gave 2^-23,
+the ulp of 1.0.
+
+succ and pred now step the number's bit pattern, read as an integer, by
+one: up in magnitude or down, by the sign. succ(0.0) is the smallest
+positive denormal, pred(0.0) its negative.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Math.Mod  | 20 ++++++++++++++++++--
+ src/runtime/MathL.Mod | 20 ++++++++++++++++++--
+ 2 files changed, 36 insertions(+), 4 deletions(-)
+
+diff --git a/src/runtime/Math.Mod b/src/runtime/Math.Mod
+index 9c4dff1a..524228c9 100644
+--- a/src/runtime/Math.Mod
++++ b/src/runtime/Math.Mod
+@@ -213,8 +213,16 @@
+    corresponding real number type greater than `x', if such a type
+    exists; otherwise an exception shall occur and may be raised.
+ *)
++  VAR i: SYSTEM.INT32;
+ BEGIN
+-  RETURN x+ulp(x)*sign(x)
++  IF x = ZERO THEN (* the smallest denormal, positive *)
++    i := 1; RETURN SYSTEM.VAL(REAL, i)
++  END;
++  (* x's bits read as an integer: a step of the magnitude away from zero
++     is INC, towards zero DEC, whatever the sign *)
++  i := SYSTEM.VAL(SYSTEM.INT32, x);
++  IF x > ZERO THEN INC(i) ELSE DEC(i) END;
++  RETURN SYSTEM.VAL(REAL, i)
+ END succ;
+ 
+ PROCEDURE pred*(x: REAL): REAL;
+@@ -223,8 +231,16 @@
+    corresponding real number type less than `x', if such a type exists;
+    otherwise an exception shall occur and may be raised.
+ *)
++  VAR i: SYSTEM.INT32;
+ BEGIN
+-  RETURN x-ulp(x)*sign(x)
++  IF x = ZERO THEN (* the smallest denormal, negative *)
++    i := 1; RETURN -SYSTEM.VAL(REAL, i)
++  END;
++  (* x's bits read as an integer: a step of the magnitude away from zero
++     is INC, towards zero DEC, whatever the sign *)
++  i := SYSTEM.VAL(SYSTEM.INT32, x);
++  IF x > ZERO THEN DEC(i) ELSE INC(i) END;
++  RETURN SYSTEM.VAL(REAL, i)
+ END pred;
+ 
+ 
+diff --git a/src/runtime/MathL.Mod b/src/runtime/MathL.Mod
+index c2bc7e6b..f6da1527 100644
+--- a/src/runtime/MathL.Mod
++++ b/src/runtime/MathL.Mod
+@@ -203,8 +203,16 @@
+    corresponding real number type greater than `x', if such a type
+    exists; otherwise an exception shall occur and may be raised.
+ *)
++  VAR i: SYSTEM.INT64;
+ BEGIN
+-  RETURN x+ulp(x)*sign(x)
++  IF x = ZERO THEN (* the smallest denormal, positive *)
++    i := 1; RETURN SYSTEM.VAL(LONGREAL, i)
++  END;
++  (* x's bits read as an integer: a step of the magnitude away from zero
++     is INC, towards zero DEC, whatever the sign *)
++  i := SYSTEM.VAL(SYSTEM.INT64, x);
++  IF x > ZERO THEN INC(i) ELSE DEC(i) END;
++  RETURN SYSTEM.VAL(LONGREAL, i)
+ END succ;
+ 
+ PROCEDURE pred*(x: LONGREAL): LONGREAL;
+@@ -213,8 +221,16 @@
+    corresponding real number type less than `x', if such a type exists;
+    otherwise an exception shall occur and may be raised.
+ *)
++  VAR i: SYSTEM.INT64;
+ BEGIN
+-  RETURN x-ulp(x)*sign(x)
++  IF x = ZERO THEN (* the smallest denormal, negative *)
++    i := 1; RETURN -SYSTEM.VAL(LONGREAL, i)
++  END;
++  (* x's bits read as an integer: a step of the magnitude away from zero
++     is INC, towards zero DEC, whatever the sign *)
++  i := SYSTEM.VAL(SYSTEM.INT64, x);
++  IF x > ZERO THEN DEC(i) ELSE INC(i) END;
++  RETURN SYSTEM.VAL(LONGREAL, i)
+ END pred;
+ 
+ 
+-- 
+2.55.0
+

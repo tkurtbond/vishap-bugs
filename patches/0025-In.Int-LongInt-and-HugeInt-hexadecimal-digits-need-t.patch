@@ -1,0 +1,59 @@
+From cda7c8e51440428d0e5e4def4af315b11a4eb8f5 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:36:38 -0400
+Subject: [PATCH 25/48] In.Int, LongInt and HugeInt: hexadecimal digits need
+ the H
+
+A digit A..F made HugeInt take the number as hexadecimal whether or not
+an H followed, so 12AB was read as 4779. Oakwood's format is IntConst =
+digit {digit} | digit {hexDigit} "H": digits with A..F and no H are not
+a number, and Done is now FALSE for them.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/In.Mod | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/src/runtime/In.Mod b/src/runtime/In.Mod
+index 4c3ef8c5..d09add3b 100644
+--- a/src/runtime/In.Mod
++++ b/src/runtime/In.Mod
+@@ -50,14 +50,15 @@
+ 
+ PROCEDURE HugeInt*(VAR h: HUGEINT);
+ VAR
+-  neg, hex, endofnum: BOOLEAN;
++  neg, hex, suffix, endofnum: BOOLEAN;
+   decacc, hexacc, digit: HUGEINT;
+ BEGIN
+   StartAndSkip;
+   Done := FALSE;
+   IF readstate = ready THEN
+     neg      := nextch = '-'; IF neg THEN ReadChar END;
+-    hex      := FALSE;
++    hex      := FALSE;  (* a digit A..F was read *)
++    suffix   := FALSE;  (* the H was read *)
+     endofnum := FALSE;
+     decacc   := 0;
+     hexacc   := 0;
+@@ -75,13 +76,15 @@
+         hexacc := hexacc * 16 + digit;
+         ReadChar
+       ELSIF nextch = "H" THEN
+-        hex := TRUE; endofnum := TRUE; ReadChar
++        suffix := TRUE; endofnum := TRUE; ReadChar
+       ELSE
+         endofnum := TRUE
+       END
+     END;
++    (* Oakwood: IntConst = digit {digit} | digit {hexDigit} "H". *)
++    IF hex & ~suffix THEN Done := FALSE END;
+     IF Done THEN
+-      IF hex THEN h := hexacc ELSE h := decacc END;
++      IF suffix THEN h := hexacc ELSE h := decacc END;
+       IF neg THEN h := -h END
+     ELSE
+       h := 0
+-- 
+2.55.0
+

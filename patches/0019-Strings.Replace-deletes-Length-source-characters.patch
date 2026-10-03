@@ -1,0 +1,30 @@
+From da35b811e87b73c09ade3fd13dbd812f633fc158 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:29:30 -0400
+Subject: [PATCH 19/48] Strings.Replace deletes Length(source) characters
+
+It deleted pos + Length(source), so Replace("XY", 3, s) of abcdefgh gave
+abcXY. Oakwood: "Replace(src, pos, dst) has the same effect as
+Delete(dst, pos, Length(src)) followed by an Insert(src, pos, dst)."
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Strings.Mod | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/runtime/Strings.Mod b/src/runtime/Strings.Mod
+index f8c7c7c9..4a96cceb 100644
+--- a/src/runtime/Strings.Mod
++++ b/src/runtime/Strings.Mod
+@@ -80,7 +80,7 @@
+ 
+ PROCEDURE Replace* (source: ARRAY OF CHAR; pos: INTEGER; VAR dest: ARRAY OF CHAR);
+ BEGIN
+-  Delete(dest, pos, pos + Length(source));
++  Delete(dest, pos, Length(source));
+   Insert(source, pos, dest)
+ END Replace;
+ 
+-- 
+2.55.0
+

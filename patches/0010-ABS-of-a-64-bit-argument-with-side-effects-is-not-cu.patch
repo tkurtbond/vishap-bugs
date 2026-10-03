@@ -1,0 +1,33 @@
+From fecc8bf056b4b089a5bec86e5c0d173d87a79cf3 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:17:26 -0400
+Subject: [PATCH 10/48] ABS of a 64 bit argument with side effects is not cut
+ to 32 bits
+
+SYSTEM_ABS64 and SYSTEM_ABS32, which __ABSF calls when the argument has
+side effects, had their result types swapped: ABS(a[Next()]) of
+-5000000000 under -OC was 705032704.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/SYSTEM.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/runtime/SYSTEM.h b/src/runtime/SYSTEM.h
+index 40459a37..7c6531cd 100644
+--- a/src/runtime/SYSTEM.h
++++ b/src/runtime/SYSTEM.h
+@@ -207,8 +207,8 @@ extern INT64 SYSTEM_ENTIER (double x);
+ 
+ #define __ABS(x) (((x)<0)?-(x):(x))
+ 
+-static inline INT32 SYSTEM_ABS64(INT64 i) {return i >= 0 ? i : -i;}
+-static inline INT64 SYSTEM_ABS32(INT32 i) {return i >= 0 ? i : -i;}
++static inline INT64 SYSTEM_ABS64(INT64 i) {return i >= 0 ? i : -i;}
++static inline INT32 SYSTEM_ABS32(INT32 i) {return i >= 0 ? i : -i;}
+ #define __ABSF(x) ((sizeof(x) <= 4) ? SYSTEM_ABS32(x) : SYSTEM_ABS64(x))
+ 
+ static inline double SYSTEM_ABSD(double i) {return i >= 0.0 ? i : -i;}
+-- 
+2.55.0
+

@@ -1,0 +1,64 @@
+From f1ba9e91afd916d8c4821de61321f49c000a3ad2 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:37:56 -0400
+Subject: [PATCH 46/48] Texts.Scan: a number with a large exponent is read, not
+ a HALT(40)
+
+Scan stopped the program with HALT(40) on a real number whose exponent
+was above 38 (E) or 308 (D), even one in range, such as 0.001D310
+(1.0D307), and read one whose negative exponent was beyond those as 0,
+even 1000.0D-310 (1.0D-307). Beyond 10^38 or 10^308 it now scales in two
+steps, so such a number is read; one out of range becomes an infinity
+(or 0), as a too-large or too-small result of arithmetic does.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index 47656f57..53bbdf5a 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -459,10 +459,17 @@
+             REPEAT y := y*10 + (ORD(d[j]) - 30H); INC(j) UNTIL j = h;
+             WHILE j < i DO g := g/10; y := (ORD(d[j]) - 30H)*g + y; INC(j) END ;
+             ReadScaleFactor;
++            (* beyond 10^308 in two steps: the number may still be in range;
++               if it is not, it becomes 0 or an infinity *)
+             IF negE THEN
+-              IF e <= 308 THEN y := y / Reals.TenL(e) ELSE y := 0 END
++              IF e <= 308 THEN y := y / Reals.TenL(e)
++              ELSE y := y / Reals.TenL(308); y := y / Reals.TenL(e - 308)
++              END
+             ELSIF e > 0 THEN
+-              IF e <= 308 THEN y := Reals.TenL(e) * y ELSE HALT(40) END
++              IF e <= 308 THEN y := Reals.TenL(e) * y
++              ELSE y := Reals.TenL(308) * y;
++                IF y # 0 THEN y := Reals.TenL(e - 308) * y END
++              END
+             END ;
+             IF neg THEN y := -y END ;
+             S.class := 5; S.y := y
+@@ -470,10 +477,16 @@
+             REPEAT x := x*10 + (ORD(d[j]) - 30H); INC(j) UNTIL j = h;
+             WHILE j < i DO f := f/10; x := (ORD(d[j])-30H)*f + x; INC(j) END;
+             IF ch = "E" THEN ReadScaleFactor END ;
++            (* beyond 10^38 in two steps, as for LONGREAL above *)
+             IF negE THEN
+-              IF e <= 38 THEN x := x / Reals.Ten(e) ELSE x := 0 END
++              IF e <= 38 THEN x := x / Reals.Ten(e)
++              ELSE x := x / Reals.Ten(38); x := x / Reals.Ten(e - 38)
++              END
+             ELSIF e > 0 THEN
+-              IF e <= 38 THEN x := Reals.Ten(e) * x ELSE HALT(40) END
++              IF e <= 38 THEN x := Reals.Ten(e) * x
++              ELSE x := Reals.Ten(38) * x;
++                IF x # 0 THEN x := Reals.Ten(e - 38) * x END
++              END
+             END ;
+             IF neg THEN x := -x END ;
+             S.class := 4; S.x := x
+-- 
+2.55.0
+

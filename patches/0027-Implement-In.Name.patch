@@ -1,0 +1,43 @@
+From 10365ed0c377dd104b48806c2fe21d7d94fc9a74 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:37:40 -0400
+Subject: [PATCH 27/48] Implement In.Name
+
+It stopped the program with HALT(99), "Not implemented". It now reads
+the characters up to the next blank or control character, Oakwood's
+"name ... according to the file name format of the underlying operating
+system (e.g. lib/My.Mod under Unix)", and sets Done to whether there was
+one that fit in the array.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/In.Mod | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/src/runtime/In.Mod b/src/runtime/In.Mod
+index fe9d89a6..b085fe4b 100644
+--- a/src/runtime/In.Mod
++++ b/src/runtime/In.Mod
+@@ -147,8 +147,17 @@
+   END
+ END String;
+ 
+-PROCEDURE Name*(VAR name: ARRAY OF CHAR); (* Read filename. Presumably using shell semantics. *)
+-BEGIN HALT(99) (* Not implemented *)
++(* Oakwood: "the name s at the current position according to the file name
++   format of the underlying operating system": the characters up to the next
++   blank or control character. A name too long for the array is not read. *)
++PROCEDURE Name*(VAR name: ARRAY OF CHAR);
++VAR i: INTEGER;
++BEGIN StartAndSkip; i := 0;
++  WHILE (readstate = ready) & (nextch > " ") & (i < LEN(name)-1) DO
++    name[i] := nextch; INC(i); ReadChar
++  END;
++  Done := (i > 0) & ((readstate # ready) OR (nextch <= " "));
++  IF Done THEN name[i] := 0X ELSE name[0] := 0X END
+ END Name;
+ 
+ (* Reads a real constant, [-] digit {digit} ["." {digit}] [("E" | "D")
+-- 
+2.55.0
+

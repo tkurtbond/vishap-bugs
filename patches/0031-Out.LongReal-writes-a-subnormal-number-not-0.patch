@@ -1,0 +1,58 @@
+From 223d4fd844d5c33660d56cf11b70488bb3a89a69 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:41:37 -0400
+Subject: [PATCH 31/48] Out.LongReal writes a subnormal number, not 0
+
+RealP took a zero exponent field for zero, so a subnormal LONGREAL (from
+4.9D-324 up to 2.2D-308) was written 0.0D+000. It is now scaled by 10^20
+into the normal range and written with its exponent. (A REAL is written
+through a LONGREAL, in which no REAL is subnormal.)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Out.Mod | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/src/runtime/Out.Mod b/src/runtime/Out.Mod
+index 3d78041f..54da3052 100644
+--- a/src/runtime/Out.Mod
++++ b/src/runtime/Out.Mod
+@@ -144,6 +144,7 @@
+   m:   HUGEINT;          (* Mantissa digits *)
+   d:   INTEGER;          (* Significant digit count to display *)
+   dr:  INTEGER;          (* Number of insignificant digits that can be dropped *)
++  shift: INTEGER;        (* Decimal places a subnormal x was scaled up by *)
+ 
+ BEGIN
+   e  := SYSTEM.VAL(INTEGER, (SYSTEM.VAL(HUGEINT, x) DIV 10000000000000H) MOD 800H);
+@@ -171,17 +172,26 @@
+       IF d < 6 THEN d := 6 END      (* Generate enough digits to do trailing zero supporession *)
+     END;
+ 
+-    IF e = 0 THEN
++    IF (e = 0) & (f = 0) THEN (* zero *)
+       WHILE el > 0 DO DEC(i); s[i] := "0"; DEC(el) END;
+       DEC(i); s[i] := "+";
+       m := 0;
+     ELSE
+       IF nn THEN x := -x END;
+ 
++      (* A subnormal x (e = 0) is scaled into the normal range first: below,
++         Ten(-e) would overflow. *)
++      shift := 0;
++      IF e = 0 THEN
++        x := x * Ten(20); shift := 20;
++        e := SYSTEM.VAL(INTEGER, (SYSTEM.VAL(HUGEINT, x) DIV 10000000000000H) MOD 800H)
++      END;
++
+       (* Scale e to be an exponent of 10 rather than 2 *)
+       e := SHORT(LONG(e - 1023) * 77 DIV 256);
+       IF e >= 0 THEN x := x / Ten(e) ELSE x := Ten(-e) * x END ;
+       IF x >= 10.0D0 THEN x := 0.1D0 * x; INC(e) END;
++      DEC(e, shift);
+ 
+       (* Scale x to enough significant digits to reliably test for trailing
+          zeroes or to the amount of space available, if greater. *)
+-- 
+2.55.0
+

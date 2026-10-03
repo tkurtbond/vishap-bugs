@@ -1,0 +1,42 @@
+From 67e559ff510c779e36ff617280a08c27db2de120 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:19:27 -0400
+Subject: [PATCH 11/48] Index a row of a multi-dimensional open array with the
+ row's length
+
+For a[r] where a is an ARRAY OF ARRAY OF T and a[r] is passed on as an
+open array, OPV.design finished the Horner schema with one factor per
+dimension not indexed, counting them as (a's type's size - 4) DIV 4. For
+an open array parameter that count was too small, so no factor was
+written: &a[r] instead of &a[r * LEN(a, 1)], and the callee got elements
+r .. r + LEN(a, 1) - 1 of the flat data instead of row r. The dimensions
+are now counted from the type of a[r] itself.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPV.Mod | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/compiler/OPV.Mod b/src/compiler/OPV.Mod
+index 4f811ae3..805184dd 100644
+--- a/src/compiler/OPV.Mod
++++ b/src/compiler/OPV.Mod
+@@ -349,10 +349,12 @@
+                      FOR i := 1 TO dims DO OPM.Write(")") END ;
+                      IF n^.typ^.comp = OPT.DynArr THEN
+                        (*  element type is OPT.DynArr; finish Horner schema with virtual indices = 0*)
+-                       OPM.Write(")");
+-                       WHILE i < (d^.typ^.size - 4) DIV 4 DO
++                       (* i is the first dimension not indexed; multiply by the
++                          length of each one, as many as n's type has. *)
++                       OPM.Write(")"); typ := n^.typ;
++                       WHILE typ^.comp = OPT.DynArr DO
+                          OPM.WriteString(" * "); Len(d, i);
+-                         INC(i)
++                         INC(i); typ := typ^.BaseTyp
+                        END
+                      END ;
+                      OPM.Write(CloseBracket)
+-- 
+2.55.0
+

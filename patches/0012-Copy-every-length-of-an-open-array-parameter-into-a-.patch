@@ -1,0 +1,33 @@
+From 4812fba19ce046bb820abb7245064110fc9bc68d Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:20:10 -0400
+Subject: [PATCH 12/48] Copy every length of an open array parameter into a
+ nested procedure's frame
+
+OPC.EnterProc copies an open array parameter used by a nested procedure
+into the frame record, with its lengths, but never advanced the
+dimension: for x: ARRAY OF ARRAY OF T it wrote _s.x__len = x__len twice
+and left _s.x__len1 unset, so in the nested procedure LEN(x, 1) and
+every x[i, j] used garbage (a NIL access trap, or a wrong element).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPC.Mod | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/compiler/OPC.Mod b/src/compiler/OPC.Mod
+index 80e6bd66..aebe6d3f 100644
+--- a/src/compiler/OPC.Mod
++++ b/src/compiler/OPC.Mod
+@@ -1033,7 +1033,7 @@
+               IF dim # 0 THEN OPM.WriteInt(dim) END ;
+               OPM.WriteString(' = '); Ident(var); OPM.WriteString(LenExt);
+               IF dim # 0 THEN OPM.WriteInt(dim) END ;
+-              typ := typ^.BaseTyp
++              typ := typ^.BaseTyp; INC(dim)
+             UNTIL typ^.comp # OPT.DynArr;
+           ELSIF (var^.mode = OPT.VarPar) & (var^.typ^.comp = OPT.Record) THEN
+             OPM.WriteString("; ");
+-- 
+2.55.0
+

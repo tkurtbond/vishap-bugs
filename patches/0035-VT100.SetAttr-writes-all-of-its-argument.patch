@@ -1,0 +1,37 @@
+From ebdd9d9502ae34c1ca5e26b06e9129685c2a10f7 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:57:28 -0400
+Subject: [PATCH 35/48] VT100.SetAttr writes all of its argument
+
+SetAttr built CSI and attr in an ARRAY 16 OF CHAR, so attr was cut at
+13 characters (and, with Strings.Append's own bug, left without a 0X):
+SetAttr("38;5;123;48;5;45m") sent ESC[38;5;123;48;5; without the
+final m, and the terminal took the text after it as part of the
+sequence. It now writes CSI and attr one after the other.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/VT100.Mod | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/src/runtime/VT100.Mod b/src/runtime/VT100.Mod
+index 358068c8..47cc8f15 100644
+--- a/src/runtime/VT100.Mod
++++ b/src/runtime/VT100.Mod
+@@ -327,11 +327,9 @@
+    END DECTCEMh;
+ 
+    PROCEDURE SetAttr*(attr : ARRAY OF CHAR);
+-   VAR tmpstr : ARRAY 16 OF CHAR;
+    BEGIN
+-      COPY(CSI, tmpstr);
+-      Strings.Append(attr, tmpstr);
+-      Out.String(tmpstr);
++      Out.String(CSI);
++      Out.String(attr);
+    END SetAttr;
+ 
+    BEGIN
+-- 
+2.55.0
+

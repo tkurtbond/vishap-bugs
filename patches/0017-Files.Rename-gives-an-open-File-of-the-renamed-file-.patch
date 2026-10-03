@@ -1,0 +1,54 @@
+From c1e3ef41493d712ec01ffde7b8002441186b1b52 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:26:48 -0400
+Subject: [PATCH 17/48] Files.Rename gives an open File of the renamed file its
+ new name
+
+Needs "Files: keep each file's name as a whole path" first (it uses
+MakeAbsolute).
+
+A File open under the old name kept it (the TODO in Rename). When a file
+of the new name was registered later, Deregister found the open File by
+device and inode and renamed it by the old name, which no longer
+existed: "Couldn't rename previous version of file being registered",
+Halt(99). Rename now gives such a File the new name.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Files.Mod | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/runtime/Files.Mod b/src/runtime/Files.Mod
+index 5bff073e..081ad5df 100644
+--- a/src/runtime/Files.Mod
++++ b/src/runtime/Files.Mod
+@@ -536,6 +536,15 @@
+     IF existed & Platform.Absent(res) THEN res := 0 END  (* the name is gone either way *)
+   END Delete;
+ 
++  (* A File open under the name the file had keeps its own name for it, which
++     Deregister renames it by: give it the new one. *)
++  PROCEDURE Renamed(identity: Platform.FileIdentity; new: ARRAY OF CHAR);
++    VAR f: File;
++  BEGIN f := files;
++    WHILE (f # NIL) & ~(Platform.SameFile(f.identity, identity) & ~f.tempFile) DO f := f.next END;
++    IF f # NIL THEN MakeAbsolute(new, f.workName) END
++  END Renamed;
++
+   PROCEDURE Rename* (old, new: ARRAY OF CHAR; VAR res: INTEGER);
+     VAR
+       fdold, fdnew: Platform.FileHandle;
+@@ -552,9 +561,8 @@
+       END;
+       error := Platform.Rename(old, new);
+       (* Out.String("Platform.Rename error code "); Out.Int(error,1); Out.Ln; *)
+-      (* TODO, if we already have a FileDesc for old, it ought to be updated
+-         with the new workname. *)
+       IF ~Platform.DifferentFilesystems(error) THEN
++        IF error = 0 THEN Renamed(oldidentity, new) END;
+         res := error; RETURN
+       ELSE
+         (* cross device link, move the file *)
+-- 
+2.55.0
+

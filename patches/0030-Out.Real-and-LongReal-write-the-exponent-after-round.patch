@@ -1,0 +1,85 @@
+From 68f1e5b84119663e45b13278c3c9d36b4cc65cb7 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:40:29 -0400
+Subject: [PATCH 30/48] Out.Real and LongReal: write the exponent after
+ rounding the digits
+
+RealP wrote the exponent's digits before rounding the mantissa, so when
+rounding carried (9.99..9 up to 10.0, and the mantissa was divided by
+ten and e incremented) the increment was lost: 1.0E37 was written
+1.0E+36, 1.0D300 1.0D+299, and the double below 1.0 1.0D-001. The math
+confidence test expected Math.sqrt(1) to be written 1.00000E-01, and
+MathL.cos(0), 0.99999999999999989 with "Write real constants to C
+exactly" applied, 1.00000000000000D-001; both are now written as
+1.0.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Out.Mod               | 12 ++++++------
+ src/test/confidence/math/expected |  6 +++---
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/runtime/Out.Mod b/src/runtime/Out.Mod
+index 8895037c..3d78041f 100644
+--- a/src/runtime/Out.Mod
++++ b/src/runtime/Out.Mod
+@@ -183,11 +183,6 @@
+       IF e >= 0 THEN x := x / Ten(e) ELSE x := Ten(-e) * x END ;
+       IF x >= 10.0D0 THEN x := 0.1D0 * x; INC(e) END;
+ 
+-      (* Generate the exponent digits *)
+-      en := e < 0; IF en THEN e := - e END;
+-      WHILE el > 0 DO digit(e, s, i); e := e DIV 10; DEC(el) END;
+-      DEC(i); IF en THEN s[i] := "-" ELSE s[i] := "+" END;
+-
+       (* Scale x to enough significant digits to reliably test for trailing
+          zeroes or to the amount of space available, if greater. *)
+       x0 := Ten(d-1);
+@@ -196,7 +191,12 @@
+                           introduces a least significant bit difference
+                           between 32 bit and 64 bit builds. *)
+       IF x >= 10.0D0 * x0 THEN x := 0.1D0 * x; INC(e) END;
+-      m := Entier64(x)
++      m := Entier64(x);
++
++      (* Generate the exponent digits, after rounding, which may carry into e *)
++      en := e < 0; IF en THEN e := - e END;
++      WHILE el > 0 DO digit(e, s, i); e := e DIV 10; DEC(el) END;
++      DEC(i); IF en THEN s[i] := "-" ELSE s[i] := "+" END
+     END;
+ 
+     DEC(i); IF long THEN s[i] := "D" ELSE s[i] := "E" END;
+diff --git a/src/test/confidence/math/expected b/src/test/confidence/math/expected
+index 990781d8..e28fd33f 100644
+--- a/src/test/confidence/math/expected
++++ b/src/test/confidence/math/expected
+@@ -47,7 +47,7 @@ Math.round(-3.0000E+00): -3.  MathL.round(-3.0000000000000D+000): -3
+ Math.round(-4.0000E+00): -4.  MathL.round(-4.0000000000000D+000): -4
+ 
+ Math.sqrt(9.00000E-01): 9.48683E-01.  MathL.sqrt(9.00000000000000D-001): 9.48683298050514D-001
+-Math.sqrt(1.00000E+00): 1.00000E-01.  MathL.sqrt(1.00000000000000D+000): 1.00000000000000D+000
++Math.sqrt(1.00000E+00): 1.00000E+00.  MathL.sqrt(1.00000000000000D+000): 1.00000000000000D+000
+ Math.sqrt(1.40000E+00): 1.18322E+00.  MathL.sqrt(1.40000000000000D+000): 1.18321595661992D+000
+ Math.sqrt(1.50000E+00): 1.22474E+00.  MathL.sqrt(1.50000000000000D+000): 1.22474487139159D+000
+ Math.sqrt(1.60000E+00): 1.26491E+00.  MathL.sqrt(1.60000000000000D+000): 1.26491106406735D+000
+@@ -58,7 +58,7 @@ Math.sqrt(2.50000E+00): 1.58114E+00.  MathL.sqrt(2.50000000000000D+000): 1.58113
+ Math.sqrt(3.00000E+00): 1.73205E+00.  MathL.sqrt(3.00000000000000D+000): 1.73205080756888D+000
+ Math.sqrt(4.00000E+00): 2.00000E+00.  MathL.sqrt(4.00000000000000D+000): 2.00000000000000D+000
+ Math.sqrt(-9.0000E-01): 9.48683E-01.  MathL.sqrt(-9.0000000000000D-001): 9.48683298050514D-001
+-Math.sqrt(-1.0000E+00): 1.00000E-01.  MathL.sqrt(-1.0000000000000D+000): 1.00000000000000D+000
++Math.sqrt(-1.0000E+00): 1.00000E+00.  MathL.sqrt(-1.0000000000000D+000): 1.00000000000000D+000
+ Math.sqrt(-1.4000E+00): 1.18322E+00.  MathL.sqrt(-1.4000000000000D+000): 1.18321595661992D+000
+ Math.sqrt(-1.5000E+00): 1.22474E+00.  MathL.sqrt(-1.5000000000000D+000): 1.22474487139159D+000
+ Math.sqrt(-1.6000E+00): 1.26491E+00.  MathL.sqrt(-1.6000000000000D+000): 1.26491106406735D+000
+@@ -101,7 +101,7 @@ Math.sin(-1.0472E+00): -8.66025E-01.  MathL.sin(-1.0471975511966D+000): -8.66025
+ Math.sin(-1.5708E+00): -1.0000E+00.  MathL.sin(-1.5707963267949D+000): -1.0000000000000D+000
+ Math.sin(-3.14159E+00): 8.74228E-08.  MathL.sin(-3.14159265358979D+000): -1.22464023514027D-016
+ 
+-Math.cos(0.00000E+00): 1.00000E+00.  MathL.cos(0.00000000000000D+000): 1.00000000000000D-001
++Math.cos(0.00000E+00): 1.00000E+00.  MathL.cos(0.00000000000000D+000): 1.00000000000000D+000
+ Math.cos(1.00000E-01): 9.95004E-01.  MathL.cos(1.00000000000000D-001): 9.95004165278026D-001
+ Math.cos(1.04720E+00): 5.00000E-01.  MathL.cos(1.04719755119660D+000): 5.00000000000000D-001
+ Math.cos(1.57080E+00): -4.37114E-08.  MathL.cos(1.57079632679490D+000): 6.12320117570134D-017
+-- 
+2.55.0
+

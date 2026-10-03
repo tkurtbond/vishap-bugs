@@ -1,0 +1,72 @@
+From 2a32a96f82d4513e17fccb89b4ae44374b3d83e1 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:16:57 -0400
+Subject: [PATCH 38/48] Math.sincos and MathL.sincos: the cosine's sign
+
+sincos gave the cosine as sqrt(1 - sin(x)^2), which is never negative,
+so for x in (pi/2, 3pi/2) (mod 2pi) it had the wrong sign:
+Math.sincos(2.0) gave cos 0.416, where cos(2) is -0.416. Near the
+cosine's zeros it also lost accuracy, since 1 - sin^2 cancels there.
+sincos now calls cos.
+
+MathL.tan is sin/cos from sincos, so it had the wrong sign wherever the
+cosine is negative, and lost accuracy near pi/2: tan(1.5707963267949),
+just past pi/2, was 2.02E7, where it is -2.86E14, and tan(3.14159265358979)
+was positive. The confidence test math's expected output changes there.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Math.Mod              | 2 +-
+ src/runtime/MathL.Mod             | 2 +-
+ src/test/confidence/math/expected | 8 ++++----
+ 3 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/runtime/Math.Mod b/src/runtime/Math.Mod
+index 2d746ff4..9c4dff1a 100644
+--- a/src/runtime/Math.Mod
++++ b/src/runtime/Math.Mod
+@@ -622,7 +622,7 @@
+ PROCEDURE sincos* (x: REAL; VAR Sin, Cos: REAL);
+ (* More efficient sin/cos implementation if both values are needed. *)
+ BEGIN
+-  Sin := sin(x); Cos := sqrt(ONE-Sin * Sin)
++  Sin := sin(x); Cos := cos(x)
+ END sincos;
+ 
+ PROCEDURE arctan2* (xn, xd: REAL): REAL;
+diff --git a/src/runtime/MathL.Mod b/src/runtime/MathL.Mod
+index 4c1e57a7..c2bc7e6b 100644
+--- a/src/runtime/MathL.Mod
++++ b/src/runtime/MathL.Mod
+@@ -520,7 +520,7 @@
+ PROCEDURE sincos* (x: LONGREAL; VAR Sin, Cos: LONGREAL);
+ (* More efficient sin/cos implementation if both values are needed. *)
+ BEGIN
+-  Sin := sin(x); Cos := sqrt(ONE-Sin*Sin)
++  Sin := sin(x); Cos := cos(x)
+ END sincos;
+ 
+ PROCEDURE arctan2* (xn, xd: LONGREAL): LONGREAL;
+diff --git a/src/test/confidence/math/expected b/src/test/confidence/math/expected
+index dc536355..c253a797 100644
+--- a/src/test/confidence/math/expected
++++ b/src/test/confidence/math/expected
+@@ -113,11 +113,11 @@ Math.cos(-3.14159E+00): -1.0000E+00.  MathL.cos(-3.14159265358979D+000): -1.0000
+ Math.tan(0.00000E+00): 0.00000E+00.  MathL.tan(0.00000000000000D+000): 0.00000000000000D+000
+ Math.tan(1.00000E-01): 1.00335E-01.  MathL.tan(1.00000000000000D-001): 1.00334672085451D-001
+ Math.tan(1.04720E+00): 1.73205E+00.  MathL.tan(1.04719755119660D+000): 1.73205080756888D+000
+-Math.tan(1.57080E+00): -2.28773E+07.  MathL.tan(1.57079632679490D+000): 1.79769313486232D+308
+-Math.tan(3.14159E+00): 8.74228E-08.  MathL.tan(3.14159265358979D+000): 1.22464023514027D-016
++Math.tan(1.57080E+00): -2.28773E+07.  MathL.tan(1.57079632679490D+000): 1.63313268877772D+016
++Math.tan(3.14159E+00): 8.74228E-08.  MathL.tan(3.14159265358979D+000): -1.22464023514027D-016
+ Math.tan(-1.0472E+00): -1.73205E+00.  MathL.tan(-1.0471975511966D+000): -1.73205080756888D+000
+-Math.tan(-1.5708E+00): 2.28773E+07.  MathL.tan(-1.5707963267949D+000): 1.79769313486232D+308
+-Math.tan(-3.14159E+00): -8.74228E-08.  MathL.tan(-3.14159265358979D+000): -1.22464023514027D-016
++Math.tan(-1.5708E+00): 2.28773E+07.  MathL.tan(-1.5707963267949D+000): -1.63313268877772D+016
++Math.tan(-3.14159E+00): -8.74228E-08.  MathL.tan(-3.14159265358979D+000): 1.22464023514027D-016
+ 
+ Math.arcsin(9.00000E-01): -4.51027E-01.  MathL.arcsin(9.00000000000000D-001): 1.11976951499863D+000
+ Math.arcsin(1.00000E+00): -0.0000E+00.  MathL.arcsin(1.00000000000000D+000): 1.57079632679490D+000
+-- 
+2.55.0
+

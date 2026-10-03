@@ -1,0 +1,84 @@
+From 896e21fa42921fc2c0f20347ac2e0c842c52d8e5 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:37:18 -0400
+Subject: [PATCH 26/48] In.Real and LongReal read one number, and set Done
+
+They read the rest of the line into a 16 character array and converted
+that: a number of more than 15 characters was cut short, the characters
+after the 15th were left to the next read, a second number on the line
+was lost, and Done was TRUE whatever the line held (it was Line's). They
+now read one real constant, Oakwood's format with a sign, set Done to
+whether there was one, and leave the input after it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/In.Mod | 45 +++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 39 insertions(+), 6 deletions(-)
+
+diff --git a/src/runtime/In.Mod b/src/runtime/In.Mod
+index d09add3b..fe9d89a6 100644
+--- a/src/runtime/In.Mod
++++ b/src/runtime/In.Mod
+@@ -151,20 +151,53 @@
+ BEGIN HALT(99) (* Not implemented *)
+ END Name;
+ 
++(* Reads a real constant, [-] digit {digit} ["." {digit}] [("E" | "D")
++   ["+" | "-"] digit {digit}] (Oakwood's, with a sign), into s, without a
++   "+"; returns whether it was one. *)
++PROCEDURE RealConst(VAR s: ARRAY OF CHAR): BOOLEAN;
++VAR i: INTEGER; ok: BOOLEAN;
++
++  PROCEDURE Take;
++  BEGIN IF i < LEN(s) - 1 THEN s[i] := nextch; INC(i) END; ReadChar
++  END Take;
++
++  PROCEDURE Digits(): BOOLEAN;
++  VAR n: INTEGER;
++  BEGIN n := 0;
++    WHILE (readstate = ready) & (nextch >= "0") & (nextch <= "9") DO Take; INC(n) END;
++    RETURN n > 0
++  END Digits;
++
++BEGIN
++  StartAndSkip; i := 0;
++  IF (readstate = ready) & (nextch = "-") THEN Take END;
++  ok := Digits();
++  IF ok & (readstate = ready) & (nextch = ".") THEN Take; IF Digits() THEN END END;
++  IF ok & (readstate = ready) & ((nextch = "E") OR (nextch = "D")) THEN
++    Take;
++    IF (readstate = ready) & (nextch = "+") THEN ReadChar
++    ELSIF (readstate = ready) & (nextch = "-") THEN Take
++    END;
++    ok := Digits()
++  END;
++  s[i] := 0X;
++  RETURN ok
++END RealConst;
++
+ PROCEDURE Real*(VAR x: REAL);
+ VAR
+-  str: ARRAY 16 OF CHAR;
++  str: ARRAY 256 OF CHAR;
+ BEGIN
+-  Line(str);
+-  Strings.StrToReal(str, x);
++  Done := RealConst(str);
++  IF Done THEN Strings.StrToReal(str, x) ELSE x := 0 END
+ END Real;
+ 
+ PROCEDURE LongReal*(VAR y: LONGREAL);
+ VAR
+-  str: ARRAY 16 OF CHAR;
++  str: ARRAY 256 OF CHAR;
+ BEGIN
+-  Line(str);
+-  Strings.StrToLongReal(str, y);
++  Done := RealConst(str);
++  IF Done THEN Strings.StrToLongReal(str, y) ELSE y := 0 END
+ END LongReal;
+ 
+ 
+-- 
+2.55.0
+

@@ -1,0 +1,67 @@
+From 37f35063edac6f77bf3155695f7342b430986d16 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:15:06 -0400
+Subject: [PATCH 07/48] SYSTEM_DIV, SYSTEM_MOD: no overflow for a dividend near
+ MIN or MAX
+
+With a 64 bit LONGINT, MIN(LONGINT) DIV 2 was 4611686018427387903,
+(MIN(LONGINT) + 1) DIV 2 and MAX(LONGINT) DIV (-2) positive, and
+MIN(LONGINT) MOD (-3) was 2: the functions negated x or added y to it
+before dividing, which overflowed. They now take C's truncating quotient
+and remainder and adjust them by one divisor when the signs differ. A
+divisor of -1, the one case where C's division overflows, is handled
+first; 0 DIV y and 0 MOD y stay 0 as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/SYSTEM.c | 26 ++++++++++++++------------
+ 1 file changed, 14 insertions(+), 12 deletions(-)
+
+diff --git a/src/runtime/SYSTEM.c b/src/runtime/SYSTEM.c
+index 2952bb66..89a7b223 100644
+--- a/src/runtime/SYSTEM.c
++++ b/src/runtime/SYSTEM.c
+@@ -24,26 +24,28 @@
+ 
+ 
+ 
++// Floored division from C's truncating division, which never overflows
++// except for x = MIN and y = -1. Negating x or adding y to it, as before,
++// overflowed for a dividend near the minimum or maximum.
++
+ INT64 SYSTEM_DIV(INT64 x, INT64 y)
+ {
++  INT64 q;
+   if (x == 0) return 0;
+-  if (x >= 0)
+-    if (y >= 0) {return x/y;}
+-    else        {return -((x-y-1)/(-y));}
+-  else
+-    if (y >= 0) {return -((y-x-1)/y);}
+-    else        {return (-x)/(-y);}
++  if (y == -1) return (INT64)(0 - (UINT64)x);   // wraps for MIN, as -x does
++  q = x / y;
++  if ((x % y != 0) && ((x < 0) != (y < 0))) q--;
++  return q;
+ }
+ 
+ INT64 SYSTEM_MOD(INT64 x, INT64 y)
+ {
++  INT64 r;
+   if (x == 0) return 0;
+-  if (x >= 0)
+-    if (y >= 0) {return x % y;}
+-    else        {return (y+1) + ((x-1) % (-y));}
+-  else
+-    if (y >= 0) {return (y-1) - ((-x-1) % y);}
+-    else        {return -((-x) % (-y));}
++  if (y == -1) return 0;
++  r = x % y;
++  if ((r != 0) && ((r < 0) != (y < 0))) r += y;
++  return r;
+ }
+ 
+ INT64 SYSTEM_ENTIER(double x)
+-- 
+2.55.0
+

@@ -1,0 +1,48 @@
+From e5879ec8a782af494a631071e48ea4da6610bbfb Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:12:44 -0400
+Subject: [PATCH 04/48] Accept real literals from 1.0E38 to MAX(REAL), 1.0D308
+ to MAX(LONGREAL)
+
+Needs "Round real literals correctly" first (it changes the same lines
+and relies on strtof/strtod). The literal 1.7976931348623157D308 itself
+also needs "Write real constants to C exactly", or its C constant is
+rounded up to infinity.
+
+OPS.Number makes the value 0.ddd * 10^e and accepted only e <= MaxRExp
+(MaxLExp), so every literal of 10^38 (10^308) or more was "number too
+large", though REAL (LONGREAL) holds up to 3.40282347E38
+(1.7976931348623157D308). One more e is accepted now, and a literal is
+too large when strtof (strtod) rounds it to infinity.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPS.Mod | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/src/compiler/OPS.Mod b/src/compiler/OPS.Mod
+index b5c33ce7..335ae8ad 100644
+--- a/src/compiler/OPS.Mod
++++ b/src/compiler/OPS.Mod
+@@ -171,12 +171,16 @@
+       IF e < 0 THEN text[k] := "-"; INC(k) END;
+       WHILE i > 0 DO DEC(i); text[k] := exponent[i]; INC(k) END;
+       text[k] := 0X;
++      (* 0.1 <= 0.dig < 1, so e = MaxRExp + 1 (MaxLExp + 1) holds 1.0E38 (1.0D308)
++         up to MAX(REAL) (MAX(LONGREAL)); above it, strtof (strtod) gives infinity. *)
+       IF expCh = "E" THEN numtyp := real;
+-        IF (1-OPM.MaxRExp < e) & (e <= OPM.MaxRExp) THEN realval := StringToFloat(text)
++        IF (1-OPM.MaxRExp < e) & (e <= OPM.MaxRExp + 1) THEN realval := StringToFloat(text);
++          IF realval - realval # 0 THEN err(203) END
+         ELSE err(203)
+         END
+       ELSE numtyp := longreal;
+-        IF (1-OPM.MaxLExp < e) & (e <= OPM.MaxLExp) THEN lrlval := StringToDouble(text)
++        IF (1-OPM.MaxLExp < e) & (e <= OPM.MaxLExp + 1) THEN lrlval := StringToDouble(text);
++          IF lrlval - lrlval # 0 THEN err(203) END
+         ELSE err(203)
+         END
+       END
+-- 
+2.55.0
+

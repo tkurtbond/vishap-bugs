@@ -1,0 +1,59 @@
+From 76acc70a912820fc7a93ba614b3413ce8ed5379f Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:13:10 -0400
+Subject: [PATCH 36/48] Reals.TenL: correctly rounded
+
+TenL computed 10^e by squaring 10 and multiplying the powers it needed,
+each product rounded, so 252 of the exponents 0..308 gave a double other
+than the one nearest 10^e: TenL(33) was 46C8A6E32246C99D, not
+46C8A6E32246C99C; TenL(300) was four units in the last place high.
+A negative e gave 10. TenL now builds the numeral 1E<e> and reads it
+with C's strtod, which rounds correctly, for any e.
+
+Texts.Scan uses TenL to scale the numbers it reads, so its LONGREALs
+come out nearer too. (Reals.Ten, which computes in LONGREAL and
+rounds once, is correct for 0..38.)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Reals.Mod | 23 ++++++++++++++---------
+ 1 file changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/src/runtime/Reals.Mod b/src/runtime/Reals.Mod
+index 20053f8a..6fc6da72 100644
+--- a/src/runtime/Reals.Mod
++++ b/src/runtime/Reals.Mod
+@@ -27,16 +27,21 @@
+   END Ten;
+ 
+ 
++  (* C's strtod rounds a decimal numeral correctly. *)
++  PROCEDURE -AAincludeStdlib '#include <stdlib.h>';
++  PROCEDURE -strtod(s: ARRAY OF CHAR): LONGREAL 'strtod((const char*)s, 0)';
++
++  (* 10^e, correctly rounded: the numeral 1E<e>, read by strtod *)
+   PROCEDURE TenL*(e: INTEGER): LONGREAL;
+-    VAR r, power: LONGREAL;
+-  BEGIN r := 1.0;
+-    power := 10.0;
+-    LOOP
+-      IF ODD(e) THEN r := r * power END ;
+-      e := e DIV 2;
+-      IF e <= 0 THEN RETURN r END ;
+-      power := power * power
+-    END
++    VAR s, d: ARRAY 16 OF CHAR; i, n: INTEGER;
++  BEGIN
++    s := "1E"; i := 2;
++    IF e < 0 THEN s[i] := "-"; INC(i); e := -e END;
++    n := 0;
++    REPEAT d[n] := CHR(ORD("0") + e MOD 10); e := e DIV 10; INC(n) UNTIL e = 0;
++    WHILE n > 0 DO DEC(n); s[i] := d[n]; INC(i) END;
++    s[i] := 0X;
++    RETURN strtod(s)
+   END TenL;
+ 
+ 
+-- 
+2.55.0
+

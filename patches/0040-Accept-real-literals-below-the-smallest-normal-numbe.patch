@@ -1,0 +1,51 @@
+From 8b29a525370009ab3024c1f984718b49073ffc07 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:20:01 -0400
+Subject: [PATCH 40/48] Accept real literals below the smallest normal number
+
+Needs "Round real literals correctly" and "Accept real literals from
+1.0E38 to MAX(REAL)" first: it changes the lines they change, and it
+relies on strtod/strtof to round a denormal.
+
+The scanner refused a REAL literal below about 1.0E-37 and a LONGREAL
+one below about 1.0D-307 with err 203, "number too large": the
+smallest normal numbers themselves, 1.17549435E-38 and
+2.2250738585072014D-308, could not be written, nor any denormal.
+(Math and MathL work around it: Math.small is 1/8.50705917E37 and
+MathL.small 2.2250738585072014/9.9999999999999981D307.) Such a literal
+is now rounded as C rounds it, to a denormal; one that is not 0 but
+rounds to 0, such as 1.0D-400, is still an error (203).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPS.Mod | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/compiler/OPS.Mod b/src/compiler/OPS.Mod
+index 335ae8ad..1855cac0 100644
+--- a/src/compiler/OPS.Mod
++++ b/src/compiler/OPS.Mod
+@@ -173,14 +173,16 @@
+       text[k] := 0X;
+       (* 0.1 <= 0.dig < 1, so e = MaxRExp + 1 (MaxLExp + 1) holds 1.0E38 (1.0D308)
+          up to MAX(REAL) (MAX(LONGREAL)); above it, strtof (strtod) gives infinity. *)
++      (* Below the smallest normal number the value is rounded to a
++         denormal; a literal that is not 0 but rounds to 0 is an error. *)
+       IF expCh = "E" THEN numtyp := real;
+-        IF (1-OPM.MaxRExp < e) & (e <= OPM.MaxRExp + 1) THEN realval := StringToFloat(text);
+-          IF realval - realval # 0 THEN err(203) END
++        IF e <= OPM.MaxRExp + 1 THEN realval := StringToFloat(text);
++          IF (realval - realval # 0) OR (realval = 0) & (digits > 0) THEN err(203) END
+         ELSE err(203)
+         END
+       ELSE numtyp := longreal;
+-        IF (1-OPM.MaxLExp < e) & (e <= OPM.MaxLExp + 1) THEN lrlval := StringToDouble(text);
+-          IF lrlval - lrlval # 0 THEN err(203) END
++        IF e <= OPM.MaxLExp + 1 THEN lrlval := StringToDouble(text);
++          IF (lrlval - lrlval # 0) OR (lrlval = 0) & (digits > 0) THEN err(203) END
+         ELSE err(203)
+         END
+       END
+-- 
+2.55.0
+

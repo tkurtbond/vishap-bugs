@@ -1,0 +1,86 @@
+From 7162acb7dc9dde6c2497893808f2a347d1ce7c0d Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:34:47 -0400
+Subject: [PATCH 44/48] Texts: a subnormal number is written with its digits,
+ not as 0
+
+WriteReal and WriteLongReal took an exponent field of 0 to mean zero,
+but it is also the field of every subnormal number, so 2^-149 (1.4E-45)
+and 2^-1074 (4.9D-324) were written as 0. Zero is now x = 0, and a
+subnormal number is first scaled by 10^20 into the normal range, its
+decimal exponent reduced by 20 again.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod | 18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index c00f6524..cf0b1c0c 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -587,10 +587,10 @@
+   END WriteSpecial;
+ 
+   PROCEDURE WriteReal* (VAR W: Writer; x: REAL; n: INTEGER);
+-    VAR e: INTEGER; x0: REAL;
++    VAR e, shift: INTEGER; x0: REAL;
+       d: ARRAY maxD OF CHAR;
+   BEGIN e := Reals.Expo(x);
+-    IF e = 0 THEN
++    IF x = 0.0 THEN
+       WriteString(W, "  0");
+       REPEAT Write(W, " "); DEC(n) UNTIL n <= 3
+     ELSIF e = 255 THEN WriteSpecial(W, x, n)
+@@ -599,11 +599,16 @@
+       REPEAT Write(W, " "); DEC(n) UNTIL n <= 8;
+       (*there are 2 < n <= 8 digits to be written*)
+       IF x < 0.0 THEN Write(W, "-"); x := -x ELSE Write(W, " ") END;
++      shift := 0;
++      IF e = 0 THEN (* a subnormal number: scaled by 10^20 it is normal *)
++        x := x * Reals.Ten(20); e := Reals.Expo(x); shift := 20
++      END;
+       e := (e - 127) * 77  DIV 256;
+       IF e >= 0 THEN x := x / Reals.Ten(e) ELSE x := Reals.Ten(-e) * x END;
+       IF x >= 10.0 THEN x := 0.1*x; INC(e) END;
+       x0 := Reals.Ten(n-1); x := x0*x + 0.5;
+       IF x >= 10.0*x0 THEN x := x*0.1; INC(e) END;
++      DEC(e, shift);
+       Reals.Convert(x, n, d);
+       DEC(n); Write(W, d[n]); Write(W, ".");
+       REPEAT DEC(n); Write(W, d[n]) UNTIL n = 0;
+@@ -665,10 +670,10 @@
+ 
+   PROCEDURE WriteLongReal* (VAR W: Writer; x: LONGREAL; n: INTEGER);
+     CONST maxD = 16;
+-    VAR e: INTEGER; x0: LONGREAL;
++    VAR e, shift: INTEGER; x0: LONGREAL;
+       d: ARRAY maxD OF CHAR;
+   BEGIN e := Reals.ExpoL(x);
+-    IF e = 0 THEN
++    IF x = 0.0D0 THEN
+       WriteString(W, "  0");
+       REPEAT Write(W, " "); DEC(n) UNTIL n <= 3
+     ELSIF e = 2047 THEN WriteSpecial(W, x, n)
+@@ -677,6 +682,10 @@
+       REPEAT Write(W, " "); DEC(n) UNTIL n <= maxD;
+       (*there are 2 <= n <= maxD digits to be written*)
+       IF x < 0 THEN Write(W, "-"); x := -x ELSE Write(W, " ") END;
++      shift := 0;
++      IF e = 0 THEN (* a subnormal number: scaled by 10^20 it is normal *)
++        x := x * Reals.TenL(20); e := Reals.ExpoL(x); shift := 20
++      END;
+ 
+       (* Scale e to be an exponent of 10 rather than 2 *)
+       e := SHORT(LONG(e - 1023) * 77 DIV 256);
+@@ -686,6 +695,7 @@
+       (* Scale x to the number of digits requested *)
+       x0 := Reals.TenL(n-1); x := x0*x + 0.5D0;
+       IF x >= 10.0D0*x0 THEN x := 0.1D0 * x; INC(e) END ;
++      DEC(e, shift);
+ 
+       (* Generate the mantissa digits of x *)
+       Reals.ConvertL(x, n, d);
+-- 
+2.55.0
+

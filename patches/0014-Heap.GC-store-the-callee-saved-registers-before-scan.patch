@@ -1,0 +1,73 @@
+From 2f4615e821348e87d6e76bbdf747e22d96a93c63 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:23:56 -0400
+Subject: [PATCH 14/48] Heap.GC: store the callee-saved registers before
+ scanning the stack
+
+The collector finds roots on the stack only. GC's register pressure
+(i0 .. i23) is meant to push the callee-saved registers into its frame,
+but voc compiles its C without optimization, so those locals are plain
+stack slots and the registers stay where they are. A pointer that the C
+compiler keeps only in rbx or r12-r15 while it evaluates a call whose
+arguments allocate, as gcc does for Check(Make("a"), Make("b")), was not
+marked, and its block was freed while in use: the reproducer corrupted
+752 of 1000000 calls on x86_64 Linux with gcc.
+
+GC now calls __SAVE_REGISTERS() (SYSTEM.h) first: __builtin_unwind_init()
+with gcc and clang, which saves every callee-saved register in the
+prologue, and setjmp into a local jmp_buf elsewhere.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Heap.Mod |  6 ++++++
+ src/runtime/SYSTEM.h | 10 ++++++++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/src/runtime/Heap.Mod b/src/runtime/Heap.Mod
+index 4c57fa3c..b2f6d8ad 100644
+--- a/src/runtime/Heap.Mod
++++ b/src/runtime/Heap.Mod
+@@ -551,6 +551,11 @@
+ 
+ 
+ 
++  (* Stores every callee-saved register in GC's own frame, where MarkStack
++     finds a pointer held only in one: the register pressure below does
++     not, as voc compiles its C without optimization. *)
++  PROCEDURE -SaveRegisters "__SAVE_REGISTERS()";
++
+   PROCEDURE GC*(markStack: BOOLEAN);
+     VAR
+       m: Module;
+@@ -565,6 +570,7 @@
+       m := m^.next
+     END;
+     IF markStack THEN
++      SaveRegisters;
+       (* generate register pressure to force callee saved registers to memory;
+          may be simplified by inlining OS calls or processor specific instructions
+       *)
+diff --git a/src/runtime/SYSTEM.h b/src/runtime/SYSTEM.h
+index 7c6531cd..29e89f7a 100644
+--- a/src/runtime/SYSTEM.h
++++ b/src/runtime/SYSTEM.h
+@@ -214,6 +214,16 @@ static inline INT32 SYSTEM_ABS32(INT32 i) {return i >= 0 ? i : -i;}
+ static inline double SYSTEM_ABSD(double i) {return i >= 0.0 ? i : -i;}
+ #define __ABSFD(x) SYSTEM_ABSD(x)
+ 
++// Store the callee-saved registers in the calling function's frame, for
++// the collector's stack scan (Heap.GC). gcc and clang save them all in the
++// prologue; elsewhere setjmp stores them in a local buffer.
++#if defined(__GNUC__) || defined(__clang__)
++#define __SAVE_REGISTERS() __builtin_unwind_init()
++#else
++#include <setjmp.h>
++#define __SAVE_REGISTERS() jmp_buf __registers; setjmp(__registers)
++#endif
++
+ // CAP changes a lower-case letter to upper case and leaves any other
+ // character as it is (clearing bit 5 changed "7" to 17X and "{" to "[").
+ static inline CHAR SYSTEM_CAP(CHAR ch) {return (ch >= 'a' && ch <= 'z') ? (CHAR)(ch - 32) : ch;}
+-- 
+2.55.0
+

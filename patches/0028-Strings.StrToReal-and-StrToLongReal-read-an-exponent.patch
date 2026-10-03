@@ -1,0 +1,39 @@
+From a0a6aaf37f6517041bf51aed7e666f442390dff1 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:38:29 -0400
+Subject: [PATCH 28/48] Strings.StrToReal and StrToLongReal read an exponent
+ with a + sign
+
+Only a - was taken after the E or D; with a +, no digit followed and the
+exponent was 0, so "2.5E+2" was 2.5.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Strings.Mod | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/runtime/Strings.Mod b/src/runtime/Strings.Mod
+index 55ff2b53..44239b74 100644
+--- a/src/runtime/Strings.Mod
++++ b/src/runtime/Strings.Mod
+@@ -178,7 +178,7 @@
+ 	END;
+ 	IF (s[p] = "D") OR (s[p] = "E") THEN
+ 		INC(p); e := 0;
+-		IF s[p] = "-" THEN negE := TRUE; INC(p) ELSE negE := FALSE END;
++		IF s[p] = "-" THEN negE := TRUE; INC(p) ELSE negE := FALSE; IF s[p] = "+" THEN INC(p) END END;
+ 		WHILE (s[p] = "0") DO INC(p) END;
+ 		WHILE ("0" <= s[p]) & (s[p] <= "9") DO
+ 			e := e * 10 + (ORD(s[p]) - 30H);
+@@ -213,7 +213,7 @@
+ 	END;
+ 	IF (s[p] = "D") OR (s[p] = "E") THEN
+ 		INC(p); e := 0;
+-		IF s[p] = "-" THEN negE := TRUE; INC(p) ELSE negE := FALSE END;
++		IF s[p] = "-" THEN negE := TRUE; INC(p) ELSE negE := FALSE; IF s[p] = "+" THEN INC(p) END END;
+ 		WHILE (s[p] = "0") DO INC(p) END;
+ 		WHILE ("0" <= s[p]) & (s[p] <= "9") DO
+ 			e := e * 10 + (ORD(s[p]) - 30H);
+-- 
+2.55.0
+

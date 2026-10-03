@@ -1,0 +1,169 @@
+From c90dea29849857399b11408e616af96789e9431f Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:23:14 -0400
+Subject: [PATCH 13/48] Check and pass a recursive call's arguments against
+ declared parameter types inside WITH
+
+WITH narrows its variable by changing the type of the variable's object
+(in OPP while parsing the branch, in OPV.IfStat while generating it).
+When the variable is a parameter of the enclosing procedure and the
+branch calls that procedure, the formal parameter is that same object,
+so the call saw the narrowed type: P(n.left) inside WITH n: Pair DO in
+P(n: Node) was err 113, incompatible assignment, and P(n) itself passed
+the narrowed pointer with no cast, which C rejects (incompatible pointer
+type). Both now keep a list of the variables narrowed by enclosing WITHs
+with their declared types, and ActualParameters (OPP) and ActualPar
+(OPV) use the declared type for a formal parameter on it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPP.Mod | 29 +++++++++++++++++++++++------
+ src/compiler/OPV.Mod | 19 ++++++++++++++++---
+ 2 files changed, 39 insertions(+), 9 deletions(-)
+
+diff --git a/src/compiler/OPP.Mod b/src/compiler/OPP.Mod
+index 7af2cbdf..6e6aa3df 100644
+--- a/src/compiler/OPP.Mod
++++ b/src/compiler/OPP.Mod
+@@ -10,12 +10,19 @@
+         low, high: LONGINT
+       END ;
+ 
++    (* A variable narrowed by an enclosing WITH, with its declared type. *)
++    Guarded = POINTER TO GuardedDesc;
++    GuardedDesc = RECORD
++      obj: OPT.Object; typ: OPT.Struct; next: Guarded
++    END ;
++
+   VAR
+     sym, level: SHORTINT;
+     LoopLevel: INTEGER;
+     TDinit, lastTDinit: OPT.Node;
+     nofFwdPtr: INTEGER;
+     FwdPtr: ARRAY 64 OF OPT.Struct;
++    guarded: Guarded;  (* innermost first *)
+ 
+   PROCEDURE^ Type(VAR typ, banned: OPT.Struct);
+   PROCEDURE^ Expression(VAR x: OPT.Node);
+@@ -353,12 +360,20 @@                   IF y^.class = OPT.Nderef THEN y := y^.left END ;  (* y = recor
+   END selector;
+ 
+   PROCEDURE ActualParameters(VAR aparlist: OPT.Node; fpar: OPT.Object);
+-    VAR apar, last: OPT.Node;
++    VAR apar, last: OPT.Node; g: Guarded; narrowed: OPT.Struct;
+   BEGIN aparlist := NIL; last := NIL;
+     IF sym # OPS.rparen THEN
+       LOOP Expression(apar);
+         IF fpar # NIL THEN
+-          OPB.Param(apar, fpar); OPB.Link(aparlist, last, apar);
++          (* A recursive call inside a WITH on one of the procedure's own
++             parameters: the formal parameter is the object the WITH has
++             narrowed, so check the actual one against its declared type. *)
++          g := guarded; WHILE (g # NIL) & (g^.obj # fpar) DO g := g^.next END ;
++          IF g # NIL THEN narrowed := fpar^.typ; fpar^.typ := g^.typ;
++            OPB.Param(apar, fpar); fpar^.typ := narrowed
++          ELSE OPB.Param(apar, fpar)
++          END ;
++          OPB.Link(aparlist, last, apar);
+           fpar := fpar^.link;
+         ELSE err(64)
+         END ;
+@@ -716,7 +731,7 @@                   IF y^.class = OPT.Nderef THEN y := y^.left END ;  (* y = recor
+   END CaseLabelList;
+ 
+   PROCEDURE StatSeq(VAR stat: OPT.Node);
+-    VAR fpar, id, t, obj: OPT.Object; idtyp: OPT.Struct; e: BOOLEAN;
++    VAR fpar, id, t, obj: OPT.Object; idtyp: OPT.Struct; e: BOOLEAN; g: Guarded;
+         s, x, y, z, apar, last, lastif: OPT.Node; pos: LONGINT; name: OPS.Name;
+ 
+     PROCEDURE CasePart(VAR x: OPT.Node);
+@@ -871,8 +886,10 @@                   IF y^.class = OPT.Nderef THEN y := y^.left END ;  (* y = recor
+             END
+           ELSE err(OPS.ident)
+           END ;
+-          pos := OPM.errpos; CheckSym(OPS.do); StatSeq(s); OPB.Construct(OPT.Nif, y, s); SetPos(y);
+-          IF idtyp # NIL THEN id^.typ := idtyp; idtyp := NIL END ;
++          pos := OPM.errpos; CheckSym(OPS.do);
++          IF idtyp # NIL THEN NEW(g); g^.obj := id; g^.typ := idtyp; g^.next := guarded; guarded := g END ;
++          StatSeq(s); OPB.Construct(OPT.Nif, y, s); SetPos(y);
++          IF idtyp # NIL THEN id^.typ := idtyp; idtyp := NIL; guarded := guarded^.next END ;
+           IF x = NIL THEN x := y; lastif := x ELSE OPB.Link(x, lastif, y) END ;
+           IF sym = OPS.bar THEN OPS.Get(sym) ELSE EXIT END
+         END;
+@@ -1011,7 +1028,7 @@                   IF y^.class = OPT.Nderef THEN y := y^.left END ;  (* y = recor
+         procdec, statseq: OPT.Node;
+         c: LONGINT; done: BOOLEAN;
+   BEGIN
+-    OPS.Init; LoopLevel := 0; level := 0; OPS.Get(sym);
++    OPS.Init; LoopLevel := 0; level := 0; guarded := NIL; OPS.Get(sym);
+     IF sym = OPS.module THEN OPS.Get(sym) ELSE err(16) END;
+     IF sym = OPS.ident THEN
+       OPM.LogCompiling(OPS.name);
+diff --git a/src/compiler/OPV.Mod b/src/compiler/OPV.Mod
+index 805184dd..a58c0261 100644
+--- a/src/compiler/OPV.Mod
++++ b/src/compiler/OPV.Mod
+@@ -45,17 +45,24 @@
+   TYPE
+     ExitInfo = RECORD level, label: INTEGER END ;
+ 
++    (* A variable narrowed by an enclosing WITH, with its declared type. *)
++    Guarded = POINTER TO GuardedDesc;
++    GuardedDesc = RECORD
++      obj: OPT.Object; typ: OPT.Struct; next: Guarded
++    END ;
++
+ 
+   VAR
+     stamp: INTEGER;  (* unique number for nested objects *)
+ 
+     exit: ExitInfo;  (* to check if EXIT is simply a break *)
+     nofExitLabels: INTEGER;
++    guarded: Guarded;  (* innermost first *)
+ 
+ 
+   PROCEDURE Init*;
+   BEGIN
+-    stamp := 0; nofExitLabels := 0;
++    stamp := 0; nofExitLabels := 0; guarded := NIL;
+   END Init;
+ 
+   PROCEDURE ^Traverse (obj, outerScope: OPT.Object; exported: BOOLEAN);
+@@ -408,10 +415,14 @@
+   END ParIntLiteral;
+ 
+   PROCEDURE ActualPar(n: OPT.Node; fp: OPT.Object);
+-    VAR typ, aptyp: OPT.Struct; comp, form, mode, prec, dim: INTEGER;
++    VAR typ, aptyp: OPT.Struct; comp, form, mode, prec, dim: INTEGER; g: Guarded;
+   BEGIN
+     OPM.Write(OpenParen);
+     WHILE n # NIL DO typ := fp^.typ;
++      (* A recursive call inside a WITH on one of the procedure's own
++         parameters: the formal parameter is the narrowed object. *)
++      g := guarded; WHILE (g # NIL) & (g^.obj # fp) DO g := g^.next END ;
++      IF g # NIL THEN typ := g^.typ END ;
+       comp := typ^.comp; form := typ^.form; mode := fp^.mode; prec := MinPrec;
+       IF (mode = OPT.VarPar) & (n^.class = OPT.Nmop) & (n^.subcl = OPT.val) THEN  (* avoid cast in lvalue *)
+         OPM.Write(OpenParen); OPC.Ident(n^.typ^.strobj); OPM.WriteString("*)"); prec := 10
+@@ -653,7 +664,7 @@
+   PROCEDURE^ stat(n: OPT.Node; outerProc: OPT.Object);
+ 
+   PROCEDURE IfStat(n: OPT.Node; withtrap: BOOLEAN; outerProc: OPT.Object);
+-    VAR if: OPT.Node; obj: OPT.Object; typ: OPT.Struct; adr: LONGINT;
++    VAR if: OPT.Node; obj: OPT.Object; typ: OPT.Struct; adr: LONGINT; g: Guarded;
+   BEGIN  (* n^.class IN {OPT.Nifelse, OPT.Nwith} *)
+     if := n^.left; (* name := ""; *)
+     WHILE if # NIL DO
+@@ -671,7 +682,9 @@
+         END ;
+         obj^.adr := 1;  (* signal special handling of variable name to OPC.CompleteIdent *)
+         obj^.typ := if^.left^.obj^.typ;
++        NEW(g); g^.obj := obj; g^.typ := typ; g^.next := guarded; guarded := g;
+         stat(if^.right, outerProc);
++        guarded := guarded^.next;
+         obj^.typ := typ; obj^.adr := adr
+       ELSE
+         stat(if^.right, outerProc)
+-- 
+2.55.0
+

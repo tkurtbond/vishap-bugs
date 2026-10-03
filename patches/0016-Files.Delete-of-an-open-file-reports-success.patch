@@ -1,0 +1,37 @@
+From 1f87ad2c6f78bfd5a70de1f3c43f619902fcedda Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:26:29 -0400
+Subject: [PATCH 16/48] Files.Delete of an open file reports success
+
+Delete first deregisters the name: a File open under it is renamed to a
+temporary name (deleted when the File is finalized). The unlink of the
+name that follows then failed with ENOENT, so res was 2, though the name
+was gone. res is now 0 when the name existed and is gone.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Files.Mod | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/runtime/Files.Mod b/src/runtime/Files.Mod
+index dd5730c9..5bff073e 100644
+--- a/src/runtime/Files.Mod
++++ b/src/runtime/Files.Mod
+@@ -528,9 +528,12 @@
+ *)
+ 
+   PROCEDURE Delete*(name: ARRAY OF CHAR; VAR res: INTEGER);
++    VAR identity: Platform.FileIdentity; existed: BOOLEAN;
+   BEGIN
+-    Deregister(name);
+-    res := Platform.Unlink(name)
++    existed := Platform.IdentifyByName(name, identity) = 0;
++    Deregister(name);  (* an open File of this name is renamed to a temporary name *)
++    res := Platform.Unlink(name);
++    IF existed & Platform.Absent(res) THEN res := 0 END  (* the name is gone either way *)
+   END Delete;
+ 
+   PROCEDURE Rename* (old, new: ARRAY OF CHAR; VAR res: INTEGER);
+-- 
+2.55.0
+

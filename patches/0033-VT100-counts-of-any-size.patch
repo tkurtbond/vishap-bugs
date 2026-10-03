@@ -1,0 +1,56 @@
+From 4ceb711c37f6a7d7eacd3baa021a6eec7337bdee Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:57:28 -0400
+Subject: [PATCH 33/48] VT100: counts of any size
+
+EscSeq and EscSeqSwapped converted their count into an ARRAY 2 OF CHAR,
+which holds one digit, so a count of 10 or more was cut to its first
+digit: CUU(12) sent ESC[1A and moved up one line. EscSeq2's ARRAY 5
+cut a count of five digits or more (CUP(12345, 67) sent ESC[1234;67H).
+The buffers now hold any INTEGER under either size model.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/VT100.Mod | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/runtime/VT100.Mod b/src/runtime/VT100.Mod
+index 6687ed02..18c11a72 100644
+--- a/src/runtime/VT100.Mod
++++ b/src/runtime/VT100.Mod
+@@ -131,8 +131,8 @@
+    END EscSeq0;
+ 
+    PROCEDURE EscSeq (n : INTEGER; letter : ARRAY OF CHAR);
+-      VAR nstr : ARRAY 2 OF CHAR;
+-       cmd : ARRAY 7 OF CHAR;
++      VAR nstr : ARRAY 12 OF CHAR;
++       cmd : ARRAY 32 OF CHAR;
+    BEGIN
+       IntToStr (n, nstr);
+       COPY(CSI, cmd);
+@@ -142,8 +142,8 @@
+    END EscSeq;
+ 
+   PROCEDURE EscSeqSwapped (n : INTEGER; letter : ARRAY OF CHAR);
+-      VAR nstr : ARRAY 2 OF CHAR;
+-       cmd : ARRAY 7 OF CHAR;
++      VAR nstr : ARRAY 12 OF CHAR;
++       cmd : ARRAY 32 OF CHAR;
+    BEGIN
+       IntToStr (n, nstr);
+       COPY(CSI, cmd);
+@@ -153,8 +153,8 @@
+    END EscSeqSwapped;
+ 
+    PROCEDURE EscSeq2(n, m : INTEGER; letter : ARRAY OF CHAR);
+-      VAR nstr, mstr : ARRAY 5 OF CHAR;
+-          cmd : ARRAY 12 OF CHAR;
++      VAR nstr, mstr : ARRAY 12 OF CHAR;
++          cmd : ARRAY 32 OF CHAR;
+    BEGIN
+       IntToStr(n, nstr);
+       IntToStr(m, mstr);
+-- 
+2.55.0
+

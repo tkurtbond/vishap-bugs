@@ -1,0 +1,97 @@
+From d63c694f9a27b5f1c448acf6fda2498f24a254d2 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:10:30 -0400
+Subject: [PATCH 02/48] Round real literals correctly: let C's strtod and
+ strtof convert them
+
+OPS.Number built 0.ddd by successive divisions by 10 and scaled it by a
+power of ten made by repeated squaring, each step rounding, so many
+literals were a few units in the last place off: 1.1D3 became
+1100.0000000000002, 123.456D0 123.45600000000002, 1.0D23
+1.0000000000000001D23 (232 of the 325 real literals in voc's own source
+came out right). Constant folding and comparison see these values. The
+scanner now hands the literal's digits and exponent to strtod (LONGREAL)
+or strtof (REAL), which round correctly. The digit buffer grows from 24
+to 64 digits, so a long constant such as MathL.pi is not cut short.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPS.Mod | 42 +++++++++++++++++++-----------------------
+ 1 file changed, 19 insertions(+), 23 deletions(-)
+
+diff --git a/src/compiler/OPS.Mod b/src/compiler/OPS.Mod
+index f81bcae6..b5c33ce7 100644
+--- a/src/compiler/OPS.Mod
++++ b/src/compiler/OPS.Mod
+@@ -89,20 +89,15 @@
+     name[i] := 0X; sym := ident
+   END Identifier;
+ 
++  (* C's strtod and strtof round a decimal number correctly. *)
++  PROCEDURE -AAincludeStdlib '#include <stdlib.h>';
++  PROCEDURE -StringToDouble(s: ARRAY OF CHAR): LONGREAL 'strtod((const char*)s, 0)';
++  PROCEDURE -StringToFloat(s: ARRAY OF CHAR): REAL 'strtof((const char*)s, 0)';
++
+   PROCEDURE Number;
+     CONST maxhexdigits = 16;
+-    VAR i, m, n, d, e: INTEGER; dig: ARRAY 24 OF CHAR; f: LONGREAL; expCh: CHAR; neg: BOOLEAN;
+-
+-    PROCEDURE Ten(e: INTEGER): LONGREAL;
+-      VAR x, p: LONGREAL;
+-    BEGIN x := 1; p := 10;
+-      WHILE e > 0 DO
+-        IF ODD(e) THEN x := x*p END;
+-        e := e DIV 2;
+-        IF e > 0 THEN p := p*p END (* prevent overflow *)
+-      END;
+-      RETURN x
+-    END Ten;
++    VAR i, m, n, d, e, k, digits: INTEGER; dig: ARRAY 64 OF CHAR; expCh: CHAR; neg: BOOLEAN;
++      text: ARRAY 96 OF CHAR; exponent: ARRAY 8 OF CHAR;
+ 
+     PROCEDURE Ord(ch: CHAR; hex: BOOLEAN): INTEGER;
+     BEGIN (* ("0" <= ch) & (ch <= "9") OR ("A" <= ch) & (ch <= "F") *)
+@@ -152,8 +147,7 @@
+       ELSE err(203)
+       END
+     ELSE (* fraction *)
+-      f := 0; e := 0; expCh := "E";
+-      WHILE n > 0 DO (* 0 <= f < 1 *) DEC(n); f := (Ord(dig[n], FALSE) + f)/10 END;
++      e := 0; expCh := "E"; digits := n; (* n is reused for the exponent's digits *)
+       IF (ch = "E") OR (ch = "D") THEN expCh := ch; OPM.Get(ch); neg := FALSE;
+         IF ch = "-" THEN neg := TRUE; OPM.Get(ch)
+         ELSIF ch = "+" THEN OPM.Get(ch)
+@@ -168,19 +162,21 @@
+         ELSE err(2)
+         END
+       END;
+-      DEC(e, i-d-m); (* decimal point shift *)
++      DEC(e, i-d-m); (* decimal point shift: the value is 0.dig * 10^e *)
++      text := "0."; k := 0;
++      WHILE k < digits DO text[k+2] := dig[k]; INC(k) END;
++      text[k+2] := "E"; INC(k, 3);
++      i := 0; d := ABS(e);  (* the digits of ABS(e), backwards *)
++      REPEAT exponent[i] := CHR(ORD("0") + d MOD 10); d := d DIV 10; INC(i) UNTIL d = 0;
++      IF e < 0 THEN text[k] := "-"; INC(k) END;
++      WHILE i > 0 DO DEC(i); text[k] := exponent[i]; INC(k) END;
++      text[k] := 0X;
+       IF expCh = "E" THEN numtyp := real;
+-        IF (1-OPM.MaxRExp < e) & (e <= OPM.MaxRExp) THEN
+-          IF e < 0 THEN realval := SHORT(f / Ten(-e))
+-          ELSE realval := SHORT(f * Ten(e))
+-          END
++        IF (1-OPM.MaxRExp < e) & (e <= OPM.MaxRExp) THEN realval := StringToFloat(text)
+         ELSE err(203)
+         END
+       ELSE numtyp := longreal;
+-        IF (1-OPM.MaxLExp < e) & (e <= OPM.MaxLExp) THEN
+-          IF e < 0 THEN lrlval := f / Ten(-e)
+-          ELSE lrlval := f * Ten(e)
+-          END
++        IF (1-OPM.MaxLExp < e) & (e <= OPM.MaxLExp) THEN lrlval := StringToDouble(text)
+         ELSE err(203)
+         END
+       END
+-- 
+2.55.0
+

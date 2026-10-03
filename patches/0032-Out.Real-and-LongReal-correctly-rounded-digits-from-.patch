@@ -1,0 +1,228 @@
+From 8735724d1d2a3786b47cee4bcce3663b75d8b2cb Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:42:54 -0400
+Subject: [PATCH 32/48] Out.Real and LongReal: correctly rounded digits, from
+ C's printf
+
+Needs "Out.LongReal writes a subnormal number, not 0" and "Out.Real and
+LongReal: write the exponent after rounding the digits" first: it
+replaces the lines they change.
+
+RealP scaled x by powers of ten made by repeated squaring (Ten) and
+rounded the scaled value, each step rounding, so the digits were often
+not those of x: of 2000 random doubles written with 17 significant
+digits (LongReal(x, 24)), 1677 did not read back as the same double,
+though 17 digits always suffice. The digits and the exponent now come
+from snprintf's "%.*e", which rounds correctly; the formatting around
+them (width, trailing zeroes, the exponent's form) is as before.
+
+The confidence test out's expected digits change to the ones the doubles
+really have: 1.1D0 is 1.10000000000000008882, so 17 digits are
+1.1000000000000001, and 1.2345678987654321D3 is written
+1.2345678987654321D+003, not 1.2345678987654320D+003. The confidence
+test math's change the same way: they are now the digits of the values
+MathL returns (MathL.sqrt(2.0D0) is 1.4142135623730949, an ulp below the
+correctly rounded square root, so 15 digits are 1.41421356237309, and
+MathL.tanh(0.9) ends in 024, not 025).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Out.Mod               | 43 ++++++++++++-------------------
+ src/test/confidence/math/expected | 16 ++++++------
+ src/test/confidence/out/expected  | 24 ++++++++---------
+ 3 files changed, 37 insertions(+), 46 deletions(-)
+
+diff --git a/src/runtime/Out.Mod b/src/runtime/Out.Mod
+index 54da3052..c74c47f5 100644
+--- a/src/runtime/Out.Mod
++++ b/src/runtime/Out.Mod
+@@ -121,7 +121,11 @@
+   RETURN r
+ END Ten;
+ 
+-PROCEDURE -Entier64(x: LONGREAL): SYSTEM.INT64 "(INT64)(x)";
++PROCEDURE -AAincludeStdio '#include <stdio.h>';
++
++(* x as C's "%.*e" with digits after the point: d.ddde+xx, correctly rounded. *)
++PROCEDURE -FormatE(VAR s: ARRAY OF CHAR; digits: INTEGER; x: LONGREAL)
++  'snprintf((char*)s, (size_t)s__len, "%.*e", (int)digits, x)';
+ 
+ (** RealP(x, n) writes the long real number x to the end of the output stream using an
+    exponential form. If the textual representation of x requires m characters (including  a
+@@ -138,13 +142,13 @@
+   s:   ARRAY 30 OF CHAR; (* Buffer built backwards *)
+   i:   INTEGER;          (* Index into s *)
+   el:  INTEGER;          (* Exponent length *)
+-  x0:  LONGREAL;
+   nn:  BOOLEAN;          (* Number negative *)
+   en:  BOOLEAN;          (* Exponent negative *)
+   m:   HUGEINT;          (* Mantissa digits *)
+   d:   INTEGER;          (* Significant digit count to display *)
+   dr:  INTEGER;          (* Number of insignificant digits that can be dropped *)
+-  shift: INTEGER;        (* Decimal places a subnormal x was scaled up by *)
++  text: ARRAY 32 OF CHAR; (* d digits and the exponent from printf *)
++  k:   INTEGER;          (* Index into text *)
+ 
+ BEGIN
+   e  := SYSTEM.VAL(INTEGER, (SYSTEM.VAL(HUGEINT, x) DIV 10000000000000H) MOD 800H);
+@@ -179,31 +183,18 @@
+     ELSE
+       IF nn THEN x := -x END;
+ 
+-      (* A subnormal x (e = 0) is scaled into the normal range first: below,
+-         Ten(-e) would overflow. *)
+-      shift := 0;
+-      IF e = 0 THEN
+-        x := x * Ten(20); shift := 20;
+-        e := SYSTEM.VAL(INTEGER, (SYSTEM.VAL(HUGEINT, x) DIV 10000000000000H) MOD 800H)
++      (* d significant digits of x, correctly rounded, by C's printf *)
++      FormatE(text, d-1, x);
++      m := 0; k := 0;
++      WHILE text[k] # "e" DO
++        IF text[k] # "." THEN m := m * 10 + (ORD(text[k]) - ORD("0")) END;
++        INC(k)
+       END;
++      INC(k); en := text[k] = "-"; INC(k); e := 0;
++      WHILE text[k] # 0X DO e := e * 10 + (ORD(text[k]) - ORD("0")); INC(k) END;
++      IF en THEN e := -e END;
+ 
+-      (* Scale e to be an exponent of 10 rather than 2 *)
+-      e := SHORT(LONG(e - 1023) * 77 DIV 256);
+-      IF e >= 0 THEN x := x / Ten(e) ELSE x := Ten(-e) * x END ;
+-      IF x >= 10.0D0 THEN x := 0.1D0 * x; INC(e) END;
+-      DEC(e, shift);
+-
+-      (* Scale x to enough significant digits to reliably test for trailing
+-         zeroes or to the amount of space available, if greater. *)
+-      x0 := Ten(d-1);
+-      x  := x0 * x;
+-      x  := x + 0.5D0; (* Do not combine with previous line as doing so
+-                          introduces a least significant bit difference
+-                          between 32 bit and 64 bit builds. *)
+-      IF x >= 10.0D0 * x0 THEN x := 0.1D0 * x; INC(e) END;
+-      m := Entier64(x);
+-
+-      (* Generate the exponent digits, after rounding, which may carry into e *)
++      (* Generate the exponent digits *)
+       en := e < 0; IF en THEN e := - e END;
+       WHILE el > 0 DO digit(e, s, i); e := e DIV 10; DEC(el) END;
+       DEC(i); IF en THEN s[i] := "-" ELSE s[i] := "+" END
+diff --git a/src/test/confidence/math/expected b/src/test/confidence/math/expected
+index e28fd33f..dc536355 100644
+--- a/src/test/confidence/math/expected
++++ b/src/test/confidence/math/expected
+@@ -52,7 +52,7 @@ Math.sqrt(1.40000E+00): 1.18322E+00.  MathL.sqrt(1.40000000000000D+000): 1.18321
+ Math.sqrt(1.50000E+00): 1.22474E+00.  MathL.sqrt(1.50000000000000D+000): 1.22474487139159D+000
+ Math.sqrt(1.60000E+00): 1.26491E+00.  MathL.sqrt(1.60000000000000D+000): 1.26491106406735D+000
+ Math.sqrt(1.90000E+00): 1.37840E+00.  MathL.sqrt(1.90000000000000D+000): 1.37840487520902D+000
+-Math.sqrt(2.00000E+00): 1.41421E+00.  MathL.sqrt(2.00000000000000D+000): 1.41421356237310D+000
++Math.sqrt(2.00000E+00): 1.41421E+00.  MathL.sqrt(2.00000000000000D+000): 1.41421356237309D+000
+ Math.sqrt(2.40000E+00): 1.54919E+00.  MathL.sqrt(2.40000000000000D+000): 1.54919333848297D+000
+ Math.sqrt(2.50000E+00): 1.58114E+00.  MathL.sqrt(2.50000000000000D+000): 1.58113883008419D+000
+ Math.sqrt(3.00000E+00): 1.73205E+00.  MathL.sqrt(3.00000000000000D+000): 1.73205080756888D+000
+@@ -63,7 +63,7 @@ Math.sqrt(-1.4000E+00): 1.18322E+00.  MathL.sqrt(-1.4000000000000D+000): 1.18321
+ Math.sqrt(-1.5000E+00): 1.22474E+00.  MathL.sqrt(-1.5000000000000D+000): 1.22474487139159D+000
+ Math.sqrt(-1.6000E+00): 1.26491E+00.  MathL.sqrt(-1.6000000000000D+000): 1.26491106406735D+000
+ Math.sqrt(-1.9000E+00): 1.37840E+00.  MathL.sqrt(-1.9000000000000D+000): 1.37840487520902D+000
+-Math.sqrt(-2.0000E+00): 1.41421E+00.  MathL.sqrt(-2.0000000000000D+000): 1.41421356237310D+000
++Math.sqrt(-2.0000E+00): 1.41421E+00.  MathL.sqrt(-2.0000000000000D+000): 1.41421356237309D+000
+ Math.sqrt(-2.4000E+00): 1.54919E+00.  MathL.sqrt(-2.4000000000000D+000): 1.54919333848297D+000
+ Math.sqrt(-2.5000E+00): 1.58114E+00.  MathL.sqrt(-2.5000000000000D+000): 1.58113883008419D+000
+ Math.sqrt(-3.0000E+00): 1.73205E+00.  MathL.sqrt(-3.0000000000000D+000): 1.73205080756888D+000
+@@ -198,7 +198,7 @@ Math.sinh(2.00000E+00): 3.62686E+00.  MathL.sinh(2.00000000000000D+000): 3.62686
+ Math.sinh(2.40000E+00): 5.46623E+00.  MathL.sinh(2.40000000000000D+000): 5.46622921367609D+000
+ Math.sinh(2.50000E+00): 6.05020E+00.  MathL.sinh(2.50000000000000D+000): 6.05020448103979D+000
+ Math.sinh(3.00000E+00): 1.00179E+01.  MathL.sinh(3.00000000000000D+000): 1.00178749274099D+001
+-Math.sinh(4.00000E+00): 2.72899E+01.  MathL.sinh(4.00000000000000D+000): 2.72899171971278D+001
++Math.sinh(4.00000E+00): 2.72899E+01.  MathL.sinh(4.00000000000000D+000): 2.72899171971277D+001
+ Math.sinh(-9.0000E-01): -1.02652E+00.  MathL.sinh(-9.0000000000000D-001): -1.02651672570818D+000
+ Math.sinh(-1.0000E+00): -1.1752E+00.  MathL.sinh(-1.0000000000000D+000): -1.1752011936438D+000
+ Math.sinh(-1.4000E+00): -1.9043E+00.  MathL.sinh(-1.4000000000000D+000): -1.90430150145153D+000
+@@ -209,7 +209,7 @@ Math.sinh(-2.0000E+00): -3.62686E+00.  MathL.sinh(-2.0000000000000D+000): -3.626
+ Math.sinh(-2.4000E+00): -5.46623E+00.  MathL.sinh(-2.4000000000000D+000): -5.46622921367609D+000
+ Math.sinh(-2.5000E+00): -6.0502E+00.  MathL.sinh(-2.5000000000000D+000): -6.05020448103979D+000
+ Math.sinh(-3.0000E+00): -1.00179E+01.  MathL.sinh(-3.0000000000000D+000): -1.00178749274099D+001
+-Math.sinh(-4.0000E+00): -2.72899E+01.  MathL.sinh(-4.0000000000000D+000): -2.72899171971278D+001
++Math.sinh(-4.0000E+00): -2.72899E+01.  MathL.sinh(-4.0000000000000D+000): -2.72899171971277D+001
+ 
+ Math.cosh(9.00000E-01): 1.43309E+00.  MathL.cosh(9.00000000000000D-001): 1.43308638544877D+000
+ Math.cosh(1.00000E+00): 1.54308E+00.  MathL.cosh(1.00000000000000D+000): 1.54308063481524D+000
+@@ -234,7 +234,7 @@ Math.cosh(-2.5000E+00): 6.13229E+00.  MathL.cosh(-2.5000000000000D+000): 6.13228
+ Math.cosh(-3.0000E+00): 1.00677E+01.  MathL.cosh(-3.0000000000000D+000): 1.00676619957778D+001
+ Math.cosh(-4.0000E+00): 2.73082E+01.  MathL.cosh(-4.0000000000000D+000): 2.73082328360165D+001
+ 
+-Math.tanh(9.00000E-01): 7.16298E-01.  MathL.tanh(9.00000000000000D-001): 7.16297870199025D-001
++Math.tanh(9.00000E-01): 7.16298E-01.  MathL.tanh(9.00000000000000D-001): 7.16297870199024D-001
+ Math.tanh(1.00000E+00): 7.61594E-01.  MathL.tanh(1.00000000000000D+000): 7.61594155955765D-001
+ Math.tanh(1.40000E+00): 8.85352E-01.  MathL.tanh(1.40000000000000D+000): 8.85351648202263D-001
+ Math.tanh(1.50000E+00): 9.05148E-01.  MathL.tanh(1.50000000000000D+000): 9.05148253644866D-001
+@@ -243,9 +243,9 @@ Math.tanh(1.90000E+00): 9.56237E-01.  MathL.tanh(1.90000000000000D+000): 9.56237
+ Math.tanh(2.00000E+00): 9.64028E-01.  MathL.tanh(2.00000000000000D+000): 9.64027580075817D-001
+ Math.tanh(2.40000E+00): 9.83675E-01.  MathL.tanh(2.40000000000000D+000): 9.83674857693680D-001
+ Math.tanh(2.50000E+00): 9.86614E-01.  MathL.tanh(2.50000000000000D+000): 9.86614298151430D-001
+-Math.tanh(3.00000E+00): 9.95055E-01.  MathL.tanh(3.00000000000000D+000): 9.95054753686731D-001
++Math.tanh(3.00000E+00): 9.95055E-01.  MathL.tanh(3.00000000000000D+000): 9.95054753686730D-001
+ Math.tanh(4.00000E+00): 9.99329E-01.  MathL.tanh(4.00000000000000D+000): 9.99329299739067D-001
+-Math.tanh(-9.0000E-01): -7.16298E-01.  MathL.tanh(-9.0000000000000D-001): -7.16297870199025D-001
++Math.tanh(-9.0000E-01): -7.16298E-01.  MathL.tanh(-9.0000000000000D-001): -7.16297870199024D-001
+ Math.tanh(-1.0000E+00): -7.61594E-01.  MathL.tanh(-1.0000000000000D+000): -7.61594155955765D-001
+ Math.tanh(-1.4000E+00): -8.85352E-01.  MathL.tanh(-1.4000000000000D+000): -8.85351648202263D-001
+ Math.tanh(-1.5000E+00): -9.05148E-01.  MathL.tanh(-1.5000000000000D+000): -9.05148253644866D-001
+@@ -254,7 +254,7 @@ Math.tanh(-1.9000E+00): -9.56237E-01.  MathL.tanh(-1.9000000000000D+000): -9.562
+ Math.tanh(-2.0000E+00): -9.64028E-01.  MathL.tanh(-2.0000000000000D+000): -9.64027580075817D-001
+ Math.tanh(-2.4000E+00): -9.83675E-01.  MathL.tanh(-2.4000000000000D+000): -9.8367485769368D-001
+ Math.tanh(-2.5000E+00): -9.86614E-01.  MathL.tanh(-2.5000000000000D+000): -9.8661429815143D-001
+-Math.tanh(-3.0000E+00): -9.95055E-01.  MathL.tanh(-3.0000000000000D+000): -9.95054753686731D-001
++Math.tanh(-3.0000E+00): -9.95055E-01.  MathL.tanh(-3.0000000000000D+000): -9.9505475368673D-001
+ Math.tanh(-4.0000E+00): -9.99329E-01.  MathL.tanh(-4.0000000000000D+000): -9.99329299739067D-001
+ 
+ Math.arcsinh(9.00000E-01): 8.08867E-01.  MathL.arcsinh(9.00000000000000D-001): 8.08866935652783D-001
+diff --git a/src/test/confidence/out/expected b/src/test/confidence/out/expected
+index cb43b5e3..032c238a 100644
+--- a/src/test/confidence/out/expected
++++ b/src/test/confidence/out/expected
+@@ -63,14 +63,14 @@ Testing LONGREAL.
+                                 1         2         3         4
+                        1234567890123456789012345678901234567890
+  1.0D0:                                 1.0000000000000000D+000
+- 1.1D0:                                 1.1000000000000000D+000
+- 2.1D0:                                 2.1000000000000000D+000
+--1.1D0:                                -1.1000000000000000D+000
++ 1.1D0:                                 1.1000000000000001D+000
++ 2.1D0:                                 2.1000000000000001D+000
++-1.1D0:                                -1.1000000000000001D+000
+  1.1D3:                                 1.1000000000000000D+003
+- 1.1D-3:                                1.1000000000000000D-003
+- 1.2345678987654321D3:                  1.2345678987654320D+003
++ 1.1D-3:                                1.1000000000000001D-003
++ 1.2345678987654321D3:                  1.2345678987654321D+003
+  0.0:                                   0.0000000000000000D+000
+- 0.000123D0:                            1.2300000000000000D-004
++ 0.000123D0:                            1.2300000000000001D-004
+  1/0.0:                                                Infinity
+ -1/0.0:                                               -Infinity
+  0.0/0.0:                                                   NaN
+@@ -191,14 +191,14 @@ Testing LONGREAL.
+                                 1         2         3         4
+                        1234567890123456789012345678901234567890
+  1.0D0:                                 1.0000000000000000D+000
+- 1.1D0:                                 1.1000000000000000D+000
+- 2.1D0:                                 2.1000000000000000D+000
+--1.1D0:                                -1.1000000000000000D+000
++ 1.1D0:                                 1.1000000000000001D+000
++ 2.1D0:                                 2.1000000000000001D+000
++-1.1D0:                                -1.1000000000000001D+000
+  1.1D3:                                 1.1000000000000000D+003
+- 1.1D-3:                                1.1000000000000000D-003
+- 1.2345678987654321D3:                  1.2345678987654320D+003
++ 1.1D-3:                                1.1000000000000001D-003
++ 1.2345678987654321D3:                  1.2345678987654321D+003
+  0.0:                                   0.0000000000000000D+000
+- 0.000123D0:                            1.2300000000000000D-004
++ 0.000123D0:                            1.2300000000000001D-004
+  1/0.0:                                                Infinity
+ -1/0.0:                                               -Infinity
+  0.0/0.0:                                                   NaN
+-- 
+2.55.0
+

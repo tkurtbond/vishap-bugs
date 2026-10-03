@@ -1,0 +1,31 @@
+From 478cac31440b2e0ab1b84429fc1fa6936d75494f Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:13:37 -0400
+Subject: [PATCH 37/48] Features.md: SET has 32 bits under -OC too
+
+The table of sizes under -O2 and -OC said SET has 64 bits under -OC.
+Commit 7f4b284a ("Correct set size in component pascal compatability
+mode", 2019) made it 32 bits, as in Component Pascal (OPM.Mod: SetSize
+:= 4 for both); SYSTEM.SET64 is the 64-bit set.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ doc/Features.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/doc/Features.md b/doc/Features.md
+index ffcb4a93..e3ab3bc6 100644
+--- a/doc/Features.md
++++ b/doc/Features.md
+@@ -41,7 +41,7 @@ type implementations.
+ | SHORTINT | 8 bit                | 16 bit     |
+ | INTEGER  | 16 bit               | 32 bit     |
+ | LONGINT  | 32 bit               | 64 bit     |
+-| SET      | 32 bit               | 64 bit     |
++| SET      | 32 bit               | 32 bit     |
+ 
+ 
+ The following Oberon types are independent of compiler size:
+-- 
+2.55.0
+

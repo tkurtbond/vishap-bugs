@@ -1,0 +1,37 @@
+From 63424de96ca5c7384fa28075d64749eae1f53b45 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:30:06 -0400
+Subject: [PATCH 21/48] Strings.Extract cuts a part too long for dest to end it
+ with 0X
+
+Extract counted on to the length of the part and wrote its 0X there, past
+the end of a dest too small for it: an index trap, or a write past dest
+without -x. It also read source[LEN(source)] when the part ran to the end
+of an unterminated source. Oakwood: "the result is truncated so that dst
+is always terminated with a 0X."
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Strings.Mod | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/runtime/Strings.Mod b/src/runtime/Strings.Mod
+index 7ae16099..8eb7dc2f 100644
+--- a/src/runtime/Strings.Mod
++++ b/src/runtime/Strings.Mod
+@@ -94,9 +94,9 @@
+   IF pos < 0 THEN pos := 0 END ;
+   IF pos >= len THEN dest[0] := 0X; RETURN END ;
+   i := 0;
+-  WHILE (pos + i <= LEN(source)) & (source[pos + i] # 0X) & (i < n) DO
+-    IF i < destLen THEN dest[i] := source[pos + i] END ;
+-    INC(i)
++  (* the result is cut short to leave room for the 0X (Oakwood) *)
++  WHILE (pos + i < LEN(source)) & (source[pos + i] # 0X) & (i < n) & (i < destLen) DO
++    dest[i] := source[pos + i]; INC(i)
+   END ;
+   dest[i] := 0X
+ END Extract;
+-- 
+2.55.0
+

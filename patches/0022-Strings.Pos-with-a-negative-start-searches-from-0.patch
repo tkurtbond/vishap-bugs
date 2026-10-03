@@ -1,0 +1,29 @@
+From 8024c269a4c1c2ce502191bd42da34558f890c97 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:30:18 -0400
+Subject: [PATCH 22/48] Strings.Pos with a negative start searches from 0
+
+It indexed s[pos] with pos as given, an index trap (or a read before s
+without -x) for a negative pos. Insert and Delete already count a
+negative position as 0.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Strings.Mod | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/runtime/Strings.Mod b/src/runtime/Strings.Mod
+index 8eb7dc2f..55ff2b53 100644
+--- a/src/runtime/Strings.Mod
++++ b/src/runtime/Strings.Mod
+@@ -107,6 +107,7 @@
+ BEGIN
+   n1 := Length(s); n2 := Length(pattern);
+   IF n2 = 0 THEN RETURN 0 END ;
++  IF pos < 0 THEN pos := 0 END ;
+   i := pos;
+   WHILE i <= n1 - n2 DO
+     IF s[i] = pattern[0] THEN
+-- 
+2.55.0
+

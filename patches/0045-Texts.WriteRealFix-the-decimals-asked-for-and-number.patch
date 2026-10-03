@@ -1,0 +1,117 @@
+From 9f2d14e8173bf4e94045df4edde10bc382fa7609 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:36:40 -0400
+Subject: [PATCH 45/48] Texts.WriteRealFix: the decimals asked for, and numbers
+ of any size
+
+WriteRealFix scaled x to its digits in REAL arithmetic and wrote at most
+9 digits (maxD), dropping decimals to stay within them, and the digits
+beyond REAL's precision were noise: WriteRealFix(1234.5, 12, 6) wrote
+1234.50008. With more than 9 digits before the point, k became negative
+and the digit array was indexed out of range: WriteRealFix(1.0E10, 16, 2)
+stopped the program (index out of range).
+
+The digits are now computed in LONGREAL, which holds x exactly and its 9
+digits without error, correctly rounded to at most maxD significant
+digits; the k decimals asked for are always written, and any digit past
+the 9th is 0. So 1234.5 with 6 decimals is 1234.500000, 1.0E10 with 2 is
+10000000000.00, and 0.0006 with 3 rounds up to 0.001.
+
+The confidence test texts writes -311.1415 with 7 decimals: it was
+-311.141504, a decimal dropped and its last digit wrong (the REAL is
+-311.14151000976...); it is now -311.1415100.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Texts.Mod              | 46 ++++++++++++++++++------------
+ src/test/confidence/texts/expected |  2 +-
+ 2 files changed, 29 insertions(+), 19 deletions(-)
+
+diff --git a/src/runtime/Texts.Mod b/src/runtime/Texts.Mod
+index cf0b1c0c..47656f57 100644
+--- a/src/runtime/Texts.Mod
++++ b/src/runtime/Texts.Mod
+@@ -619,17 +619,20 @@
+   END WriteReal;
+ 
+   PROCEDURE WriteRealFix* (VAR W: Writer; x: REAL; n, k: INTEGER);
+-    VAR e, i: INTEGER; sign: CHAR; x0: REAL;
+-      d: ARRAY maxD OF CHAR;
++    (* x with k digits after the point: at most maxD significant digits,
++       correctly rounded, and zeros after them *)
++    VAR e, i, nd, total: INTEGER; sign: CHAR; y, y0: LONGREAL;
++      d: ARRAY maxD+1 OF CHAR;
+ 
+     PROCEDURE seq(ch: CHAR; n: INTEGER);
+     BEGIN WHILE n > 0 DO Write(W, ch); DEC(n) END
+     END seq;
+ 
+-    PROCEDURE dig(n: INTEGER);
++    PROCEDURE dig(n: INTEGER);  (* the next n digits: d's, then zeros *)
+     BEGIN
+       WHILE n > 0 DO
+-        DEC(i); Write(W, d[i]); DEC(n)
++        IF i > 0 THEN DEC(i); Write(W, d[i]) ELSE Write(W, "0") END;
++        DEC(n)
+       END
+     END dig;
+ 
+@@ -639,24 +642,31 @@
+     ELSIF e = 255 THEN WriteSpecial(W, x, n)
+     ELSE e := (e - 127) * 77 DIV 256;
+       IF x < 0 THEN sign := "-"; x := -x ELSE sign := " " END;
+-      IF e >= 0 THEN  (*x >= 1.0,  77/256 = log 2*) x := x/Reals.Ten(e)
+-        ELSE (*x < 1.0*) x := Reals.Ten(-e) * x
+-      END;
+-      IF x >= 10.0 THEN x := 0.1*x; INC(e) END;
+-      (* 1 <= x < 10 *)
+-      IF k+e >= maxD-1 THEN k := maxD-1-e
+-        ELSIF k+e < 0 THEN k := -e; x := 0.0
++      (* in LONGREAL, which holds x exactly and its maxD digits without
++         error: y := x / 10^e, 1 <= y < 10 *)
++      y := x;
++      IF e >= 0 THEN y := y / Reals.TenL(e) ELSE y := Reals.TenL(-e) * y END;
++      IF y >= 10.0D0 THEN y := y / 10.0D0; INC(e) END;
++      IF y < 1.0D0 THEN y := y * 10.0D0; DEC(e) END;
++      (* 10^e <= x < 10^(e+1): e+1 digits before the point, k after *)
++      total := e + 1 + k; nd := total;
++      IF nd > maxD THEN nd := maxD END;
++      IF nd <= 0 THEN (* below the last decimal: 0, or 1 there if x rounds up *)
++        IF (total = 0) & (y >= 5.0D0) THEN INC(e); d[0] := "1"; i := 1 ELSE i := 0 END
++      ELSE
++        y0 := Reals.TenL(nd-1); y := y0*y + 0.5D0;
++        IF y >= 10.0D0*y0 THEN (* rounded up to the next power of ten *)
++          INC(e); INC(total);
++          IF nd < maxD THEN INC(nd) ELSE y := y / 10.0D0 END
++        END;
++        Reals.ConvertL(y, nd, d); i := nd
+       END;
+-      x0 := Reals.Ten(k+e); x := x0*x + 0.5;
+-      IF x >= 10.0*x0 THEN INC(e) END;
+-      (*e = no. of digits before decimal point*)
+-      INC(e); i := k+e; Reals.Convert(x, i, d);
+-      IF e > 0 THEN
+-        seq(" ", n-e-k-2); Write(W, sign); dig(e);
++      IF e >= 0 THEN
++        seq(" ", n-(e+1)-k-2); Write(W, sign); dig(e+1);
+         Write(W, "."); dig(k)
+       ELSE seq(" ", n-k-3);
+         Write(W, sign); Write(W, "0"); Write(W, ".");
+-        seq("0", -e); dig(k+e)
++        IF -e-1 >= k THEN seq("0", k) ELSE seq("0", -e-1); dig(k+e+1) END
+       END
+     END
+   END WriteRealFix;
+diff --git a/src/test/confidence/texts/expected b/src/test/confidence/texts/expected
+index 96ea4526..b824b933 100644
+--- a/src/test/confidence/texts/expected
++++ b/src/test/confidence/texts/expected
+@@ -1,4 +1,4 @@
+ aaa
+  -3.1E+02
+--311.141504
++-311.1415100
+  -3.1D+002
+-- 
+2.55.0
+

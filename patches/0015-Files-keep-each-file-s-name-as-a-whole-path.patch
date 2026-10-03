@@ -1,0 +1,62 @@
+From 6353c0a779db801296b0a3ebb59b2a8876c28226 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:25:08 -0400
+Subject: [PATCH 15/48] Files: keep each file's name as a whole path
+
+New and Old stored the name as given, relative to the directory current
+then. When the same file was registered again later (Deregister finds
+it by device and inode) Files renamed the open File by that stored name,
+resolved against the directory current at that time: after a change of
+directory the rename failed with ENOENT and the program stopped with
+"Couldn't rename previous version of file being registered" and
+Halt(99). Old also stored the name it was asked for, not the path where
+the search path found it. Both now store the whole path (from
+Platform.CWD), as GetTempName already did for temporary files. GetName
+now gives the whole path.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/Files.Mod | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/src/runtime/Files.Mod b/src/runtime/Files.Mod
+index 9ebee283..dd5730c9 100644
+--- a/src/runtime/Files.Mod
++++ b/src/runtime/Files.Mod
+@@ -97,6 +97,15 @@
+     dest[i] := 0X;
+   END MakeFileName;
+ 
++  (* A File keeps its names as whole paths: one relative to the directory
++     current when the file was made or opened would name another file, or
++     none, once the program changes directory (Deregister renames an open
++     file by its name when the same file is registered again). *)
++  PROCEDURE MakeAbsolute(name: ARRAY OF CHAR; VAR dest: ARRAY OF CHAR);
++  BEGIN
++    IF (name[0] = '/') OR (name[0] = 0X) THEN COPY(name, dest) ELSE MakeFileName(Platform.CWD, name, dest) END
++  END MakeAbsolute;
++
+   PROCEDURE GetTempName(finalName: ARRAY OF CHAR; VAR name: ARRAY OF CHAR);
+   VAR i, n: INTEGER;
+   BEGIN
+@@ -225,7 +234,7 @@
+   PROCEDURE New* (name: ARRAY OF CHAR): File;
+     VAR f: File;
+   BEGIN
+-    NEW(f); f.workName := ""; COPY(name, f.registerName);
++    NEW(f); f.workName := ""; MakeAbsolute(name, f.registerName);
+     f.fd := NoDesc; f.state := create; f.len := 0; f.pos := 0; f.swapper := -1; (*all f.buf[i] = NIL*)
+     RETURN f
+   END New;
+@@ -319,7 +328,7 @@
+           ELSE NEW(f); Heap.RegisterFinalizer(f, Finalize);
+             f.fd := fd; f.state := open; f.pos := 0; f.swapper := -1; (*all f.buf[i] = NIL*)
+             error := Platform.Size(fd, f.len);
+-            COPY(name, f.workName); f.registerName := ""; f.tempFile := FALSE;
++            MakeAbsolute(path, f.workName); f.registerName := ""; f.tempFile := FALSE;
+             f.identity := identity;
+             f.next := files;  files := f; INC(Heap.FileCount);
+             RETURN f
+-- 
+2.55.0
+

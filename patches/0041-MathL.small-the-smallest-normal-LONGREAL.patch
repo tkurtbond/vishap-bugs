@@ -1,0 +1,37 @@
+From 30bba14b31cb6f52e632128e7e04fc7bac400f06 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 14:18:51 -0400
+Subject: [PATCH 41/48] MathL.small: the smallest normal LONGREAL
+
+Needs "Accept real literals below the smallest normal number" (and so
+the two fixes it needs) to compile, and "Write real constants to C
+exactly" for the value to reach the C code exactly.
+
+small was 2.2250738585072014/9.9999999999999981D307, a workaround for
+the scanner refusing 2.2250738585072014D-308, and the C written for it
+was 0, so MathL.small was 0.0. With the constants written exactly the
+quotient is 000FFFFFFAAD8B05, a denormal, still not 2^-1022. small is
+now the literal 2.2250738585072014D-308, which is 2^-1022 exactly.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/runtime/MathL.Mod | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/src/runtime/MathL.Mod b/src/runtime/MathL.Mod
+index f6da1527..74d1f4c0 100644
+--- a/src/runtime/MathL.Mod
++++ b/src/runtime/MathL.Mod
+@@ -86,8 +86,7 @@
+ 
+   places*   = 53;
+   large*    = MAX(LONGREAL); (*1.7976931348623157D+308;*)  (* MAX(LONGREAL) *)
+-(*small*    = 2.2250738585072014D-308; *)
+-  small*    = 2.2250738585072014/9.9999999999999981D307(*/10^308)*);
++  small*    = 2.2250738585072014D-308;  (* 2^-1022, the smallest normal LONGREAL *)
+   expoMax*  = 1023;
+   expoMin*  = 1-expoMax;
+   expOffset = expoMax;
+-- 
+2.55.0
+

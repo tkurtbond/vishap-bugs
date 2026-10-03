@@ -1,0 +1,47 @@
+From e1bbb8c1531d317fb7ad52687b2864e5c3b34fcb Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:35:35 -0400
+Subject: [PATCH 24/48] Make HUGEINT another name for SYSTEM.INT64
+
+HUGEINT was a type of its own, distinct from SYSTEM.INT64 though both
+are 8 byte integers. A symbol file records an integer type by its size
+only, and reads an 8 byte one back as SYSTEM.INT64, so an exported
+HUGEINT VAR parameter became a SYSTEM.INT64 one to importers, and a
+HUGEINT variable could not be passed to it: In.HugeInt(h) with h a
+HUGEINT was err 123, "type of actual parameter is not identical with
+that of formal VAR-parameter". HUGEINT now names the SYSTEM.INT64 type
+itself, as LONGINT does under -OC.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPT.Mod | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/compiler/OPT.Mod b/src/compiler/OPT.Mod
+index 85997db1..513f8ba1 100644
+--- a/src/compiler/OPT.Mod
++++ b/src/compiler/OPT.Mod
+@@ -161,7 +161,7 @@
+   realtyp*, lrltyp*,    stringtyp*,
+   adrtyp*,  sysptrtyp*: Struct;
+ 
+-  sintobj*, intobj*, lintobj*, setobj*: Object;
++  sintobj*, intobj*, lintobj*, setobj*, hintobj: Object;
+ 
+   nofGmod*: SHORTINT;  (*nof imports*)
+   GlbMod*:  ARRAY maxImps OF Object;  (* ^.right = first object, ^.name = module import name (not alias) *)
+@@ -1517,7 +1517,10 @@ BEGIN NEW(node); node^.class := class; RETURN node
+   EnterTyp("CHAR",     Char,   1, chartyp);
+   EnterTyp("REAL",     Real,   4, realtyp);
+   EnterTyp("LONGREAL", LReal,  8, lrltyp);
+-  EnterTyp("HUGEINT",  Int,    8, hinttyp);
++  (* HUGEINT is another name for SYSTEM.INT64, not a type of its own: a
++     symbol file records an integer type by its size only, so an imported
++     HUGEINT is read back as SYSTEM.INT64 and must be the same type. *)
++  EnterTypeAlias("HUGEINT", hintobj); hintobj^.typ := int64typ; hinttyp := int64typ;
+   EnterTyp("BYTE@",    Int,    1, cpbytetyp);  (* Component Pascal byte type, enabled in Compiler.PropagateElementaryTypeSize *)
+ 
+   (* Type aliases for standard integer and set types are linked to real types in Compiler.PropagateElementaryTypeSize *)
+-- 
+2.55.0
+

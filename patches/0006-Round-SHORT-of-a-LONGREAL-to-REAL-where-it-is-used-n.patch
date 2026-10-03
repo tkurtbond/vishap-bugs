@@ -1,0 +1,34 @@
+From 7a86b526d4a654b027b27b81cb692ccfeaefa984 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:13:55 -0400
+Subject: [PATCH 06/48] Round SHORT of a LONGREAL to REAL where it is used, not
+ only where stored
+
+OPV.Convert wrote no cast for a LONGREAL to REAL conversion, relying on
+C's conversion on assignment. Inside an expression nothing converts, so
+LONG(SHORT(x)) and SHORT(x) * 1.0D0 were x itself, not x rounded to
+REAL. It now writes (REAL).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPV.Mod | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/compiler/OPV.Mod b/src/compiler/OPV.Mod
+index 8e30da2b..4f811ae3 100644
+--- a/src/compiler/OPV.Mod
++++ b/src/compiler/OPV.Mod
+@@ -273,6 +273,10 @@
+         OPM.Write(OpenParen); Entier(n, MinPrec); OPM.Write(CloseParen)
+       ELSE OPM.WriteString("(CHAR)"); Entier(n, 9)
+       END
++    ELSIF (to = OPT.Real) & (from = OPT.LReal) THEN
++      (* C converts implicitly only where the value is stored: LONG(SHORT(x))
++         and SHORT(x) used in a LONGREAL expression must round here. *)
++      OPM.WriteString("(REAL)"); expr(n, 9)
+     ELSE expr(n, prec)
+     END
+   END Convert;
+-- 
+2.55.0
+

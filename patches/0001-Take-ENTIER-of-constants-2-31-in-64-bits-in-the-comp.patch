@@ -1,0 +1,71 @@
+From 87d9a6a79b31304b5025c3ee611a53d374f9aa92 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Sat, 3 Oct 2026 13:09:57 -0400
+Subject: [PATCH 01/48] Take ENTIER of constants >= 2^31 in 64 bits in the
+ compiler
+
+The compiler is built with the -O2 sizes, so its own ENTIER yields a 32
+bit LONGINT, which halts with "Value out of range" for anything that
+needs more. Under -OC it took that ENTIER of constants that do:
+OPM.WriteReal of any integral LONGREAL constant below 2^63 (so a literal
+2147483648.0D0 or 1.0D10 stopped the compiler), and OPB.Convert folding a
+constant ENTIER (ENTIER(3000000000.5D0)). OPM.Entier64 computes the 64
+bit value in pieces. OPB.Convert's upper bound is also made exclusive:
+2^63 does not fit.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPB.Mod |  4 ++--
+ src/compiler/OPM.Mod | 16 ++++++++++++++--
+ 2 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/src/compiler/OPB.Mod b/src/compiler/OPB.Mod
+index 1c7debe6..565cd60b 100644
+--- a/src/compiler/OPB.Mod
++++ b/src/compiler/OPB.Mod
+@@ -625,8 +625,8 @@
+         IF g IN OPT.realSet THEN CheckRealType(g, 203, x^.conval)
+         ELSE (* g = OPT.Int *)
+           r := x^.conval^.realval;
+-          IF (r < MIN(SYSTEM.INT64)) OR (r > MAX(SYSTEM.INT64)) THEN err(203); r := 1 END ;
+-          x^.conval^.intval := ENTIER(r); SetIntType(x)
++          IF (r < MIN(SYSTEM.INT64)) OR (r >= -(MIN(SYSTEM.INT64) * 1.0D0)) THEN err(203); r := 1 END ;
++          x^.conval^.intval := OPM.Entier64(r); SetIntType(x)
+         END
+       ELSE (* (f IN {OPT.Char, OPT.Byte}) & (g IN {OPT.Byte} + OPT.intSet) OR (f = OPT.Undef) *)
+       END ;
+diff --git a/src/compiler/OPM.Mod b/src/compiler/OPM.Mod
+index 5635fa03..d3f4ddd6 100755
+--- a/src/compiler/OPM.Mod
++++ b/src/compiler/OPM.Mod
+@@ -754,13 +754,25 @@
+     END;
+   END WriteInt;
+ 
++  (* ENTIER(r) for MIN(SYSTEM.INT64) <= r < -MIN(SYSTEM.INT64). The compiler is
++     built with the -O2 sizes, where ENTIER yields a 32 bit LONGINT, which
++     halts with "Value out of range" for a value that needs more. *)
++  PROCEDURE Entier64* (r: LONGREAL): SYSTEM.INT64;
++    VAR high, middle: SYSTEM.INT64;
++  BEGIN
++    high := ENTIER(r / 4294967296.0D0);      (* -2^31 <= high < 2^31 *)
++    r := r - high * 4294967296.0D0;          (* 0 <= r < 2^32, exactly *)
++    middle := ENTIER(r / 65536.0D0);         (* 0 <= middle < 2^16 *)
++    RETURN (high * 65536 + middle) * 65536 + ENTIER(r - middle * 65536.0D0)
++  END Entier64;
++
+   PROCEDURE WriteReal* (r: LONGREAL; suffx: CHAR);
+     VAR W: Texts.Writer; T: Texts.Text; R: Texts.Reader; s: ARRAY 32 OF CHAR; ch: CHAR; i: INTEGER;
+   BEGIN
+ (*should be improved *)
+-    IF (r < SignedMaximum(LongintSize)) & (r > SignedMinimum(LongintSize)) & (r = ENTIER(r)) THEN
++    IF (r < SignedMaximum(LongintSize)) & (r > SignedMinimum(LongintSize)) & (r = Entier64(r)) THEN
+       IF suffx = "f" THEN WriteString("(REAL)") ELSE WriteString("(LONGREAL)") END ;
+-      WriteInt(ENTIER(r))
++      WriteInt(Entier64(r))
+     ELSE
+       Texts.OpenWriter(W);
+       IF suffx = "f" THEN Texts.WriteLongReal(W, r, 16) ELSE Texts.WriteLongReal(W, r, 23) END ;
+-- 
+2.55.0
+
