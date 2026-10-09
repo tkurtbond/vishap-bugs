@@ -45,87 +45,90 @@ fix moved up this list brings the fixes it needs along with it.
     lower-case letters.
 15. [06] - wrong values: `SHORT` of a `LONGREAL` is not rounded inside an
     expression.
-16. [67] - `ethStrings.RealToStr` writes nonsense on little-endian machines.
+16. [68] - wrong data: a fixed-array value parameter given a shorter or an
+    open array holds what lies past its actual (an open one is cut, with
+    no 0X and no length test).
+17. [67] - `ethStrings.RealToStr` writes nonsense on little-endian machines.
 
 ## 2. Reading or writing outside an array
 
 Each is an index trap with voc's default `-x`, and memory corruption
 without it.
 
-17. [23] - `Files.ReadString`/`ReadLine` take the length from the file's
+18. [23] - `Files.ReadString`/`ReadLine` take the length from the file's
     contents, so a file can overrun the program's array.
-18. [65] - `Texts.Scan` on a numeral of 32 digits or more, also taken from
+19. [65] - `Texts.Scan` on a numeral of 32 digits or more, also taken from
     the input.
-19. [21] - `Strings.Extract` into a small destination.
-20. [20] - `Strings.Append`/`Insert` leave no 0X, so whatever reads the
+20. [21] - `Strings.Extract` into a small destination.
+21. [20] - `Strings.Append`/`Insert` leave no 0X, so whatever reads the
     result next runs off its end.
-21. [57] - `Strings.Cap` of a string that fills its array.
-22. [52] - `Texts.Close` of a file name of 60 characters or more.
-23. [22] - `Strings.Pos` with a negative start.
+22. [57] - `Strings.Cap` of a string that fills its array.
+23. [52] - `Texts.Close` of a file name of 60 characters or more.
+24. [22] - `Strings.Pos` with a negative start.
 
 ## 3. Programs, or the compiler, stopped on valid input
 
-24. [49] - storing a text loaded from a file: NIL access.
-25. [51] - `Texts.Save`/`Copy` of an element that is not copied: NIL access.
-26. [15] - `Files` after a change of directory: `Halt(99)` at a later
+25. [49] - storing a text loaded from a file: NIL access.
+26. [51] - `Texts.Save`/`Copy` of an element that is not copied: NIL access.
+27. [15] - `Files` after a change of directory: `Halt(99)` at a later
     `Register`.
-27. [17] - `Files.Rename` of an open file: `Halt(99)` later.
-28. [46] - `Texts.Scan` of a large exponent: `HALT(40)` (a small one is read
+28. [17] - `Files.Rename` of an open file: `Halt(99)` later.
+29. [46] - `Texts.Scan` of a large exponent: `HALT(40)` (a small one is read
     as 0).
-29. [48] - sin, cos and tan of a large argument are 0 (`Math.err` is set).
-30. [45] - `Texts.WriteRealFix` drops decimals, and traps above 9 digits.
-31. [27] - `In.Name` halts: not implemented.
-32. [08] - the compiler dies of SIGFPE on `MIN(HUGEINT) DIV (-1)`.
-33. [01] - the compiler halts on an integral `LONGREAL` literal or a
+30. [48] - sin, cos and tan of a large argument are 0 (`Math.err` is set).
+31. [45] - `Texts.WriteRealFix` drops decimals, and traps above 9 digits.
+32. [27] - `In.Name` halts: not implemented.
+33. [08] - the compiler dies of SIGFPE on `MIN(HUGEINT) DIV (-1)`.
+34. [01] - the compiler halts on an integral `LONGREAL` literal or a
     constant `ENTIER` of 2^31 or more (`-OC`).
 
 ## 4. Wrong results that show, or need unusual input
 
-34. [18] - `Strings.Insert` past the end does nothing.
-35. [19] - `Strings.Replace` deletes too much.
-36. [26] - `In.Real`/`LongReal` swallow the rest of the line.
-37. [25] - `In.LongInt` takes hexadecimal digits without the `H`.
-38. [16] - `Files.Delete` of an open file reports failure but deletes it.
-39. [60] - `Platform.Delay` returns early on a signal.
-40. [62] - `Modules.ThisMod`/`ThisCommand` miss long names.
-41. [64] - `Oberon.Log` echoes deleted and changed text.
-42. [63] - `Oberon.Par` cuts arguments to 255 characters.
-43. [33] - `VT100` cuts a count of 10 or more to its first digit.
-44. [35] - `VT100.SetAttr` cuts its argument, leaving a sequence open.
-45. [34] - `VT100.DSR` always sends 6.
-46. [43] - `Texts` writes an infinity as NaN.
-47. [31] - `Out.LongReal` writes a subnormal number as 0.
-48. [44] - `Texts` writes a subnormal number as 0.
-49. [56] - `arcsinh`/`arccosh` of a large argument.
-50. [55] - `exp` is 0 where the result is subnormal.
-51. [54] - `fraction`, `ulp` and `scale` of a subnormal number.
-52. [42] - `exponent` of a subnormal number.
-53. [39] - `succ`/`pred` are not the neighbouring numbers.
-54. [41] - `MathL.small` is 0.
-55. [53] - `Texts.WriteInt` of `MIN(SYSTEM.INT64)` ignores the width.
+35. [18] - `Strings.Insert` past the end does nothing.
+36. [19] - `Strings.Replace` deletes too much.
+37. [26] - `In.Real`/`LongReal` swallow the rest of the line.
+38. [25] - `In.LongInt` takes hexadecimal digits without the `H`.
+39. [16] - `Files.Delete` of an open file reports failure but deletes it.
+40. [60] - `Platform.Delay` returns early on a signal.
+41. [62] - `Modules.ThisMod`/`ThisCommand` miss long names.
+42. [64] - `Oberon.Log` echoes deleted and changed text.
+43. [63] - `Oberon.Par` cuts arguments to 255 characters.
+44. [33] - `VT100` cuts a count of 10 or more to its first digit.
+45. [35] - `VT100.SetAttr` cuts its argument, leaving a sequence open.
+46. [34] - `VT100.DSR` always sends 6.
+47. [43] - `Texts` writes an infinity as NaN.
+48. [31] - `Out.LongReal` writes a subnormal number as 0.
+49. [44] - `Texts` writes a subnormal number as 0.
+50. [56] - `arcsinh`/`arccosh` of a large argument.
+51. [55] - `exp` is 0 where the result is subnormal.
+52. [54] - `fraction`, `ulp` and `scale` of a subnormal number.
+53. [42] - `exponent` of a subnormal number.
+54. [39] - `succ`/`pred` are not the neighbouring numbers.
+55. [41] - `MathL.small` is 0.
+56. [53] - `Texts.WriteInt` of `MIN(SYSTEM.INT64)` ignores the width.
 
 ## 5. A few units in the last place
 
-56. [66] - `Texts.Scan` reals (a third of `REAL`s wrong).
-57. [32] - `Out.LongReal` digits (most do not read back).
-58. [29] - `StrToReal`/`StrToLongReal`.
-59. [02] - real literals.
-60. [47] - `sqrt`.
-61. [36] - `Reals.TenL` (and 10 for a negative exponent).
-62. [05] - `MAX(LONGREAL)`, and the folded `MAX(REAL)`.
+57. [66] - `Texts.Scan` reals (a third of `REAL`s wrong).
+58. [32] - `Out.LongReal` digits (most do not read back).
+59. [29] - `StrToReal`/`StrToLongReal`.
+60. [02] - real literals.
+61. [47] - `sqrt`.
+62. [36] - `Reals.TenL` (and 10 for a negative exponent).
+63. [05] - `MAX(LONGREAL)`, and the folded `MAX(REAL)`.
 
 ## 6. Rejected at compile time
 
-63. [13] - recursion inside a `WITH` on the procedure's own parameter: a
+64. [13] - recursion inside a `WITH` on the procedure's own parameter: a
     false error, or C that gcc rejects. The workaround is easy.
-64. [24] - a `HUGEINT` variable cannot be passed to `In.HugeInt`.
-65. [04] - real literals near the top of the range are "number too large".
-66. [40] - real literals below the smallest normal number are "number too
+65. [24] - a `HUGEINT` variable cannot be passed to `In.HugeInt`.
+66. [04] - real literals near the top of the range are "number too large".
+67. [40] - real literals below the smallest normal number are "number too
     large".
 
 ## 7. Documentation
 
-67. [37] - `Features.md` says `SET` has 64 bits under `-OC`.
+68. [37] - `Features.md` says `SET` has 64 bits under `-OC`.
 
 [01]: issues/01-entier-64.md
 [02]: issues/02-real-literal-rounding.md
@@ -194,3 +197,4 @@ without it.
 [65]: issues/65-texts-scan-long-number.md
 [66]: issues/66-texts-scan-rounding.md
 [67]: issues/67-ethreals-word-offsets.md
+[68]: issues/68-array-value-parameter.md

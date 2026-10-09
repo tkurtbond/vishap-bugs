@@ -23,7 +23,7 @@ Nothing here has been submitted to voc's repository.
   than a comment in its source says, without that being a bug: wrong
   claims (in comments or elsewhere) and design choices, each with what
   was found. Nothing there has a patch.
-- `priority.md`: the 67 issues ranked by severity, most severe first.
+- `priority.md`: the 68 issues ranked by severity, most severe first.
 - `notes/NN-name/`: longer accounts of two of the bugs, 13 and 14.
 - `tools/`: what produced and checked all of the above, described in
   "Reproducing the results" below.
@@ -171,3 +171,4 @@ Build voc twice with `make all`, at `master` and with the series applied
 | 65 | [Texts.Scan traps on a number of 32 digits or more](issues/65-texts-scan-long-number.md) | [0065](patches/0065-Texts.Scan-numbers-of-32-digits-or-more.patch) | (after 46) |
 | 66 | [Texts.Scan does not read real numbers correctly rounded](issues/66-texts-scan-rounding.md) | [0066](patches/0066-Texts.Scan-real-numbers-correctly-rounded.patch) | 65 |
 | 67 | [ethReals reads the wrong half of a LONGREAL, so ethStrings.RealToStr writes nonsense](issues/67-ethreals-word-offsets.md) | [0067](patches/0067-ethReals-set-H-and-L-the-offsets-of-a-LONGREAL-s-two.patch) |  |
+| 68 | [A fixed-array value parameter accepts an array of another type and reads past its end](issues/68-array-value-parameter.md) | [0068](patches/0068-A-fixed-array-value-parameter-takes-only-an-actual-o.patch) |  |

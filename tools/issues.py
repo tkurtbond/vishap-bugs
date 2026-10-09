@@ -365,6 +365,16 @@ little-endian machine `ExpoL`, `SetExpoL`, `RealL` and `IntL` then take
 the low half for the high one, and `ethStrings.RealToStr`, which uses
 them, writes nonsense: `RealToStr(12345.678D0, s)` gives
 `0.000000000000005D+042`, and `RealToStr(3.0D0, s)` gives `0`."""),
+
+68: ("A fixed-array value parameter accepts an array of another type and reads past its end",
+"""A value parameter of type `ARRAY 8 OF CHAR` accepts a shorter array
+(`ARRAY 4 OF CHAR`) or an open array, where Oberon-2 allows only its own
+type. The callee copies 8 bytes from whatever it is given: from a shorter
+actual it reads past the end, so the parameter holds the bytes that follow
+(here the next field of a record), and an open actual of any length is cut
+to 8 characters, with no 0X and without the length test that the
+assignment `n := s` makes: `Assign(long)`, last, stops with that test's
+`Halt(-2)`."""),
 }
 
 # Series numbers each patch needs applied first, for its code to apply or work.

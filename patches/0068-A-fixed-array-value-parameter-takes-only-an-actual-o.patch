@@ -1,0 +1,45 @@
+From 3338630723bec764f75703f7328b35000a0c6422 Mon Sep 17 00:00:00 2001
+From: "T. Kurt Bond" <tkurtbond@gmail.com>
+Date: Fri, 9 Oct 2026 14:04:00 -0400
+Subject: [PATCH 68/68] A fixed-array value parameter takes only an actual of
+ its own type
+
+Oberon2.pdf requires a value parameter's actual to be assignment
+compatible with it (10.1), and for an array that means the same type, or
+a string constant for an ARRAY n OF CHAR (Appendix A). Param checked it
+with CheckAssign, which for array assignment also accepts a shorter
+array of the same element type and an open array (its comments cite
+Oberon-07): an assignment copies the source's length, and tests an open
+array's at run time. A value parameter is copied in the callee instead
+(__DUPARR), which knows only the formal's size, so a shorter actual is
+read past its end and the parameter holds whatever follows it, and an
+open actual is cut to the formal's length with no 0X and no test. Such
+an actual is now err 113, incompatible assignment, as Oberon-2 makes it.
+Assignment is unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/compiler/OPB.Mod | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/compiler/OPB.Mod b/src/compiler/OPB.Mod
+index 7c8e59aa..dcf40fbd 100644
+--- a/src/compiler/OPB.Mod
++++ b/src/compiler/OPB.Mod
+@@ -1415,6 +1415,13 @@
+         ELSIF ap^.class >= OPT.Nconst THEN err(59)
+         ELSE DynArrParCheck(fp^.typ, ap^.typ, FALSE)
+         END
++      ELSIF (fp^.typ^.comp = OPT.Array) & (ap^.typ^.comp IN {OPT.Array, OPT.DynArr}) & (ap^.typ # fp^.typ) THEN
++        (* Oberon-2 allows only the formal's own type here. CheckAssign's
++           wider rule for array assignment does not hold for a value
++           parameter: the array is copied in the callee, which knows only
++           the formal's size, so a shorter actual would be read past its
++           end, and an open one taken without its length test. *)
++        err(113)
+       ELSE CheckAssign(fp^.typ, ap)
+       END
+     END
+-- 
+2.55.0
+
